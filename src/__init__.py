@@ -2,7 +2,7 @@ import os.path as osp
 import importlib
 from src.util.misc import scandir
 
-# automatically import all modules under the current directory
+# automatically import all sub modules under the current directory
 folder = osp.dirname(osp.abspath(__file__))
 folder_name = osp.basename(folder)
 
