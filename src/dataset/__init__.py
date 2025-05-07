@@ -1,5 +1,4 @@
-from . import static2dynamic, footprint2pressure
-
+# manually import 3rd party classes to register
 from src.tool.registry import DATASET_REGISTRY
 from torch.utils.data import Dataset
 
