@@ -160,7 +160,7 @@ def face_area(verts, faces):
     Compute face areas
     Args:
         verts (torch.Tensor): verts [V, 3]
-        faces (torch.Tensor): faces [F, 3]
+        faces (torch.LongTensor): faces [F, 3]
     """
     coords = face_coords(verts, faces)
     vec_A = coords[:, 1, :] - coords[:, 0, :]
@@ -176,7 +176,7 @@ def face_normal(verts, faces, is_normalize=True):
     Compute face normal
     Args:
         verts (torch.Tensor): verts [V, 3]
-        faces (torch.Tensor): faces [F, 3]
+        faces (torch.LongTensor): faces [F, 3]
         is_normalize (bool, optional): whether normalize face normal. Default True.
     """
     coords = face_coords(verts, faces)
@@ -486,7 +486,6 @@ def laplacian_decomposition(verts, faces, k=150):
         - evals: (k) list of eigenvalues of the Laplacian matrix.
         - evecs: (V, k) list of eigenvectors of the Laplacian.
         - evecs_trans: (k, V) list of pseudo inverse of eigenvectors of the Laplacian.
-        - sqrt_area: (float) square root of the area of the mesh.
     """
     assert k >= 0, f'Number of eigenvalues/vectors should be non-negative, bug get {k}'
     is_cloud = (faces is None)
