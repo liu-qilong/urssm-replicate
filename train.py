@@ -2,8 +2,8 @@ import torch
 import argparse
 from pathlib import Path
 
-from src.tool.registry import SCRIPT_REGISTRY
-from src.tool import config
+from src.infra.registry import SCRIPT_REGISTRY
+from src.infra import config
 
 if __name__ == '__main__':
     # parse command line arguments

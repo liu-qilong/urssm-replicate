@@ -1,5 +1,5 @@
 # manually import 3rd party classes to register
-from src.tool.registry import DATALOADER_REGISTRY
+from src.infra.registry import DATALOADER_REGISTRY
 from torch.utils.data import DataLoader
 
 for cls in [DataLoader, ]:

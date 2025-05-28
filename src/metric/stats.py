@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from src.tool.registry import METRIC_REGISTRY
+from src.infra.registry import METRIC_REGISTRY
 
 @METRIC_REGISTRY.register()
 class MeanDiffRatio(nn.Module):

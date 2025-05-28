@@ -27,6 +27,3 @@ LOSS_REGISTRY = Registry('loss')
 METRIC_REGISTRY = Registry('metric')
 OPTIMIZER_REGISTRY = Registry('optimizer')
 SCRIPT_REGISTRY = Registry('script')
-
-# trigger the execution of @*.register() decoration in the following files
-from src import dataset, dataloader, model, loss, metric, optimizer, tool

@@ -1,5 +1,5 @@
 # manually import 3rd party classes to register
-from src.tool.registry import METRIC_REGISTRY
+from src.infra.registry import METRIC_REGISTRY
 from torch.nn import L1Loss, MSELoss
 
 for cls in [L1Loss, MSELoss]:

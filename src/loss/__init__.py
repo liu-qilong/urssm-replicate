@@ -1,5 +1,5 @@
 # manually import 3rd party classes to register
-from src.tool.registry import LOSS_REGISTRY
+from src.infra.registry import LOSS_REGISTRY
 from torch.nn import MSELoss
 
 for cls in [MSELoss, ]:

@@ -6,7 +6,7 @@ import time
 from tqdm.auto import tqdm
 from pathlib import Path
 
-from src.tool.registry import DATASET_REGISTRY, DATALOADER_REGISTRY, MODEL_REGISTRY, LOSS_REGISTRY, METRIC_REGISTRY, OPTIMIZER_REGISTRY, SCRIPT_REGISTRY
+from src.infra.registry import DATASET_REGISTRY, DATALOADER_REGISTRY, MODEL_REGISTRY, LOSS_REGISTRY, METRIC_REGISTRY, OPTIMIZER_REGISTRY, SCRIPT_REGISTRY
 
 # --- training scripts ---
 @SCRIPT_REGISTRY.register()

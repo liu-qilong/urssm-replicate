@@ -7,8 +7,8 @@ from tqdm import tqdm
 
 import torch
 
-from src.util.geometry import laplacian_decomposition, get_operators
-from src.util.shape import read_shape, compute_geodesic_distmat, write_off
+from src.utils.geometry import laplacian_decomposition, get_operators
+from src.utils.shape import read_shape, compute_geodesic_distmat, write_off
 
 
 if __name__ == '__main__':

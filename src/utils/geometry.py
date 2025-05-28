@@ -639,8 +639,10 @@ def compute_operators(verts, faces, k=120, normals=None):
     return frames, massvec, L, evals, evecs, gradX, gradY
 
 
-def get_operators(verts, faces, k=120, normals=None,
-                  cache_dir=None, overwrite_cache=False):
+def get_operators(
+        verts, faces, k=120, normals=None,
+        cache_dir=None, overwrite_cache=False,
+    ):
     """
     See documentation for compute_operators().
     This essentailly just wraps a call to compute_operators, using a cache if possible.
@@ -760,9 +762,11 @@ def get_operators(verts, faces, k=120, normals=None,
     return frames, mass, L, evals, evecs, gradX, gradY
 
 
-def get_all_operators(verts, faces, k=120,
-                      normals=None,
-                    cache_dir=None):
+def get_all_operators(
+        verts, faces, k=120,
+        normals=None,
+        cache_dir=None,
+    ):
     """
     Get all operators from batch
     """

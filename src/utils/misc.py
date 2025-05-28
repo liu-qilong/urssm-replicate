@@ -5,7 +5,7 @@ import time
 import numpy as np
 import torch
 
-from src.util.dist import master_only
+from src.utils.dist import master_only
 
 
 def set_random_seed(seed):
