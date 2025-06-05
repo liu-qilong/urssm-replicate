@@ -1,3 +1,5 @@
+# This implementation is adapted from Dongliang Cao, et al. (2024): https://github.com/dongliangcao/unsupervised-learning-of-robust-spectral-shape-matching
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
