@@ -1,9 +1,12 @@
 # This implementation is adapted from Dongliang Cao, et al. (2024): https://github.com/dongliangcao/unsupervised-learning-of-robust-spectral-shape-matching
 
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
-from src.infra.registry import METRIC_REGISTRY
 
+from src.infra.registry import METRIC_REGISTRY
+from src.utils.fmap import fmap2pointmap
+from src.utils.tensor import to_numpy
 
 @METRIC_REGISTRY.register()
 def calculate_geodesic_error(dist_x, corr_x, corr_y, p2p, return_mean=True):
@@ -26,6 +29,35 @@ def calculate_geodesic_error(dist_x, corr_x, corr_y, p2p, return_mean=True):
         return geo_err.mean()
     else:
         return geo_err
+
+
+@METRIC_REGISTRY.register()
+class GeodesicDist(nn.Module):
+    def __init__(self):
+        super(GeodesicDist, self).__init__()
+
+    def forward(self, infer, data):
+        Cxy = infer['Cxy']
+        evecs_x = data['first']['evecs']
+        evecs_y = data['second']['evecs']
+        dist_x = data['first']['dist']
+        corr_x = data['first']['corr']
+        corr_y = data['second']['corr']
+
+        num = Cxy.shape[0]
+        dist = 0
+
+        for it in range(num):
+            p2p = fmap2pointmap(Cxy[it], evecs_x[it], evecs_y[it])
+            dist += calculate_geodesic_error(
+                to_numpy(dist_x[it]),
+                to_numpy(corr_x[it]),
+                to_numpy(corr_y[it]),
+                to_numpy(p2p),
+                return_mean=True,
+            )
+
+        return dist / num
 
 
 @METRIC_REGISTRY.register()

@@ -22,7 +22,6 @@ class SURFMNetLoss(nn.Module):
     Loss as presented in the SURFMNet paper.
     Orthogonality + Bijectivity + Laplacian Commutativity
     """
-
     def __init__(self, w_bij=1.0, w_orth=1.0, w_lap=1e-3):
         """
         Init SURFMNetLoss

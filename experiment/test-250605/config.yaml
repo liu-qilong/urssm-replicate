@@ -49,36 +49,27 @@ train:
                     batch_size: 1
                     shuffle: True
     loss:
-        name: 'CompositeLoss'
-        losses:
-            - name: 'SURFMNetLoss_wrap'
-              weight: 1.0
-              args:
-                w_bij: 1.0
-                w_orth: 1.0
-                w_lap: 0.0
-            - name: 'SpatialSpectralAlignmentLoss_wrap'
-              weight: 1.0
-              args: {}
+        surfm_loss:
+            name: 'SURFMNetLoss_wrap'
+            weight: 1.0
+            args:
+              w_bij: 1.0
+              w_orth: 1.0
+              w_lap: 0.0
+        align_loss:
+            name: 'SpatialSpectralAlignmentLoss_wrap'
+            weight: 1.0
+            args: {}
     metric:
-        mean_diff_ratio:
-            name: 'MeanDiffRatio'
-            args: {}
-        std_diff_ratio:
-            name: 'StdDiffRatio'
-            args: {}
-        MAE:
-            name: 'L1Loss'
-            args: {}
-        MSE:
-            name: 'MSELoss'
+        geodist:
+            name: 'GeodesicDist'
             args: {}
     optimizer: 
-        name: 'SGD'
-        epochs: 100
+        name: 'Adam'
+        epochs: 1
         args:
-            lr: 0.001
-benchmark:
+            lr: 1.0e-3
+test:
     script: 'TestScript'
     dataset:
         aug:
@@ -116,43 +107,3 @@ benchmark:
         MSE:
             name: 'MSELoss'
             args: {}
-sampling:
-    script: 'SamplingScript'
-    dataset:
-        aug:
-            name: 'Footprint2Pressure_SensorStack_Blend'
-            args:
-                footprint_wrap_folder: 'data/processed/footprint-wrap/'
-                pedar_dynamic_path: 'data/processed/pedar_dynamic.pkl'
-                l_mask_path: 'data/processed/left_foot_mask.png'
-                sense_range: 600
-                stack_range: 50
-                img_size: 5
-            dataloader:
-                name: 'DataLoader'
-                args:
-                    batch_size: 10
-                    shuffle: False
-            batch_select: [0, ]
-        wo_aug:
-            name: 'Footprint2Pressure_SensorStack'
-            args:
-                footprint_wrap_folder: 'data/processed/footprint-wrap/'
-                pedar_dynamic_path: 'data/processed/pedar_dynamic.pkl'
-                l_mask_path: 'data/processed/left_foot_mask.png'
-                sense_range: 600
-                stack_range: 50
-                img_size: 5
-            dataloader:
-                name: 'DataLoader'
-                args:
-                    batch_size: 10
-                    shuffle: False
-            batch_select: [0, ]
-    metric:
-        MAE:
-            name: 'PedarHeatmap'
-            args:
-                mask_path: 'data/processed/left_foot_mask.png'
-                sense_range: 600
-                export_folder: 'sample/'
