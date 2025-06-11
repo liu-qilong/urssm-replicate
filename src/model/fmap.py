@@ -27,11 +27,10 @@ def get_mask(evals1, evals2, resolvant_gamma):
 @MODEL_REGISTRY.register()
 class RegularizedFMNet(nn.Module):
     """Compute the functional map matrix representation in DPFM"""
-    def __init__(self, lmbda=100, resolvant_gamma=0.5, bidirectional=False):
+    def __init__(self, lmbda=100, resolvant_gamma=0.5):
         super(RegularizedFMNet, self).__init__()
         self.lmbda = lmbda
         self.resolvant_gamma = resolvant_gamma
-        self.bidirectional = bidirectional
 
     def compute_functional_map(self, feat_x, feat_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y):
         A = torch.bmm(evecs_trans_x, feat_x)  # [B, K, C]
@@ -52,7 +51,7 @@ class RegularizedFMNet(nn.Module):
         Cxy = torch.cat(C_i, dim=1)
         return Cxy
 
-    def forward(self, feat_x, feat_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y):
+    def forward(self, feat_x, feat_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y, bidirectional=False):
         """
         Forward pass to compute functional map
         Args:
@@ -68,7 +67,7 @@ class RegularizedFMNet(nn.Module):
         """
         Cxy = self.compute_functional_map(feat_x, feat_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y)
 
-        if self.bidirectional:
+        if bidirectional:
             Cyx = self.compute_functional_map(feat_y, feat_x, evals_y, evals_x, evecs_trans_y, evecs_trans_x)
         else:
             Cyx = None

@@ -162,9 +162,9 @@ class TrainScript():
             torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'optimizer.pth')
 
 
-# --- benchmark scripts ---
+# --- test scripts ---
 @SCRIPT_REGISTRY.register()
-class BenchmarkScript():
+class TestScript():
     def __init__(self, opt):
         self.opt = opt
         
@@ -206,7 +206,8 @@ class BenchmarkScript():
         print('-'*50)
 
     def load_model(self):
-        self.model = MODEL_REGISTRY[self.opt.model.name](device=self.device, **self.opt.model.args)
+        self.model = MODEL_REGISTRY[self.opt.model.name](**self.opt.model.args)
+        self.model.to(self.device)
         self.model.load_state_dict(torch.load(Path(self.opt.path) / 'model.pth'))
 
     def benchmark_loop(self):
@@ -262,7 +263,7 @@ class BenchmarkScript():
 
 # --- sampling scripts for prediction example generation ---
 @SCRIPT_REGISTRY.register()
-class SamplingScript(BenchmarkScript):
+class SamplingScript(TestScript):
     def __init__(self, opt):
         self.opt = opt
         
@@ -286,7 +287,7 @@ class SamplingScript(BenchmarkScript):
         }
 
         # init metric dict
-        # p.s. the difference from BenchmarkScript is that opt is also inputted to the metric class
+        # p.s. the difference from TestScript is that opt is also inputted to the metric class
         self.metric_dict = {}
 
         for key, value in self.opt.sampling.metric.items():
