@@ -1,12 +1,13 @@
 device_select: 'auto'
-model:
+network:
     name: 'URSSM'
     feature_extractor:
         name: 'DiffusionNet'
         args:
             in_channels: 128
             out_channels: 256
-            cache_dir: '../data/FAUST_r/diffusion'
+            # cache_dir: '../data/FAUST_r/diffusion'
+            cache_dir: 'data/FAUST_r/diffusion'
             input_type: 'wks'
     fm_solver:
         name: 'RegularizedFMNet'
@@ -23,11 +24,11 @@ train:
             args:
                 phase: 'train'
                 data_root: 'data/FAUST_r/'
-                return_evecs: 'true'
-                return_faces: 'true'
+                return_evecs: True
+                return_faces: True
                 num_evecs: 200
-                return_corr: 'false'
-                return_dist: 'false'
+                return_corr: False
+                return_dist: False
             dataloader:
                 name: 'DataLoader'
                 args:
@@ -38,11 +39,11 @@ train:
             args:
                 phase: 'test'
                 data_root: 'data/FAUST_r/'
-                return_evecs: 'true'
-                return_faces: 'true'
+                return_evecs: True
+                return_faces: True
                 num_evecs: 200
-                return_corr: 'false'
-                return_dist: 'false'
+                return_corr: True
+                return_dist: True
             dataloader:
                 name: 'DataLoader'
                 args:
@@ -69,8 +70,10 @@ train:
         epochs: 1
         args:
             lr: 1.0e-3
-test:
-    script: 'TestScript'
+    test_interval: 500
+    checkpoint_interval: 500
+bench:
+    script: 'BenchScript'
     dataset:
         aug:
             name: 'Footprint2Pressure_SensorStack_Blend'

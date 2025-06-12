@@ -40,8 +40,7 @@ class SURFMNetLoss(nn.Module):
 
     def forward(self, C12, C21, evals_1, evals_2):
         """
-        bijectivity loss + orthogonality loss
-                            + Laplacian commutativity loss
+        bijectivity loss + orthogonality loss + Laplacian commutativity loss
 
         Args:
             C12 (torch.Tensor): matrix representation of functional map (1->2). Shape: [N, K, K]

@@ -7,6 +7,8 @@ from tqdm.auto import tqdm
 from pathlib import Path
 
 from src.infra.registry import DATASET_REGISTRY, DATALOADER_REGISTRY, MODEL_REGISTRY, LOSS_REGISTRY, METRIC_REGISTRY, OPTIMIZER_REGISTRY, SCRIPT_REGISTRY
+from src.utils.tensor import to_device
+
 
 # --- training scripts ---
 @SCRIPT_REGISTRY.register()
@@ -27,144 +29,107 @@ class TrainScript():
 
         print(f'running on {self.device}...')
 
-        # init logs dict
-        self.logs = {
-            'epoch': [],
-            'time': [],
-            'train_loss': [],
-            'test_loss': [],
-        }
-
-        # init metric dict
-        self.metric_dict = {}
-
-        for key, value in self.opt.train.metric.items():
-            self.metric_dict[key] = METRIC_REGISTRY[value.name](**value.args)
-            self.logs[key] = []
-
     def load_data(self):
-        # to enforce consistency of train/test dataset splitting, the train/test set shall be explicitly provided as different dataset, rather than created with random split.
-        self.train_dataset = DATASET_REGISTRY[self.opt.train.dataset.train.name](device = self.device, **self.opt.train.dataset.train.args)
+        self.train_dataset = DATASET_REGISTRY[self.opt.train.dataset.train.name](**self.opt.train.dataset.train.args)
         self.train_dataloader = DATALOADER_REGISTRY[self.opt.train.dataset.train.dataloader.name](self.train_dataset, **self.opt.train.dataset.train.dataloader.args)
         print(f'load training dataset with {len(self.train_dataset)} samples')
 
-        self.test_dataset = DATASET_REGISTRY[self.opt.train.dataset.test.name](device = self.device, **self.opt.train.dataset.test.args)
+        self.test_dataset = DATASET_REGISTRY[self.opt.train.dataset.test.name](**self.opt.train.dataset.test.args)
         self.test_dataloader = DATALOADER_REGISTRY[self.opt.train.dataset.test.dataloader.name](self.test_dataset, **self.opt.train.dataset.test.dataloader.args)
         print(f'load testing dataset with {len(self.test_dataset)} samples')
-        
-        print('-'*50)
 
     def train_prep(self):
-        # init/load model, loss, & optimizer
-        self.model = MODEL_REGISTRY[self.opt.model.name](device=self.device, **self.opt.model.args)
-        self.loss_fn = LOSS_REGISTRY[self.opt.train.loss.name](**self.opt.train.loss.args)
-        self.optimizer = OPTIMIZER_REGISTRY[self.opt.train.optimizer.name](**self.opt.train.optimizer.args, params=self.model.parameters())
+        # init/load model
+        self.network = MODEL_REGISTRY[self.opt.network.name](self.opt).to(self.device)
 
-        if self.opt.train.use_pretrain:
-            self.model.load_state_dict(torch.load(Path(self.opt.path) / 'model.pth'))
-            self.optimizer.load_state_dict(torch.load(Path(self.opt.path) / 'optimizer.pth'))
+        # init loss dict
+        self.loss_dict = {}
+
+        for name, loss in self.opt.train.loss.items():
+            self.loss_dict[name] = {
+                'fn': LOSS_REGISTRY[loss['name']](**loss['args']).to(self.device),
+                'weight': loss['weight'],
+            }
+        
+        # init metric dict
+        self.metric_dict = {}
+
+        for name, metric in self.opt.train.metric.items():
+            self.metric_dict[name] = METRIC_REGISTRY[metric['name']](**metric['args']).to(self.device)
+
+        # init optimizer
+        self.optimizer = OPTIMIZER_REGISTRY[self.opt.train.optimizer.name](**self.opt.train.optimizer.args, params=self.network.parameters())
 
     def train_loop(self):
-        self.start_time = time.time()
+        epochs = self.opt.train.optimizer.epochs
+        
+        for epoch in range(epochs):
+            for batch, data in (pdar := tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))):
+                pdar.set_description(f"epoch {epoch}/{epochs-1}")
 
-        for epoch in (pdar := tqdm(range(self.opt.train.optimizer.epochs))):
-            self.logs['epoch'].append(epoch)
-            self.logs['time'].append(time.strftime('%Y/%m/%d %H:%M:%S UTC', time.gmtime(time.time())))
+                self.network.train()
+                data = to_device(data, self.device)
+                self._train_step(data)
 
-            self._train_step(pdar)
-            self._test_step(pdar)
-            self._log_step()
+                if batch != 0 and batch % self.opt.train.test_interval == 0:
+                    self._test_step(pdar)
+                    pass
 
-    def _update_pdar(self, pdar, batch, batch_num, mode='training'):
-        try:
-            pdar.set_description(
-                f'{mode} batch {batch}/{batch_num - 1} '\
-                f'of epoch {self.logs["epoch"][-1]} | '\
-                f'time {self.logs["time"][-1]} | '\
-                f'train_loss {self.logs["train_loss"][-1]:.4f} '\
-                f'test_loss {self.logs["test_loss"][-1]:.4f}')
-        except:
-            pdar.set_description(
-                f'{mode} batch {batch}/{batch_num - 1} '\
-                f'of epoch {self.logs["epoch"][-1]} | '\
-                f'time {self.logs["time"][-1]} | '\
-                f'train_loss {0:.4f} '\
-                f'test_loss {0:.4f}')
+                if batch != 0 and batch % self.opt.train.checkpoint_interval == 0:
+                    pdar.set_description(f"checkpointing")
+                    self._checkpoint_step()
 
-    def _train_step(self, pdar):
-        # put model in train mode
-        self.model.train()
-        train_loss = 0
-        batch_num = len(self.train_dataloader)
+    def _train_step(self, data):
+        # forward pass & loss calculation
+        infer = self.network(data)
+        loss_val = 0.0
 
-        for batch, (x, y) in enumerate(self.train_dataloader):
-            # progress bar update
-            self._update_pdar(pdar, batch, batch_num, mode='training')
+        for name, loss in self.loss_dict.items():
+            loss_val += loss['fn'](infer, data) * loss['weight']
 
-            # forward pass
-            y_pred = self.model(x)
-            loss = self.loss_fn(y_pred, y)
-            train_loss += loss.item()
-
-            # loss backward
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
-        # append loss
-        self.logs['train_loss'].append(train_loss / len(self.train_dataloader))
+        # loss backward
+        self.optimizer.zero_grad()
+        loss_val.backward()
+        self.optimizer.step()
 
     def _test_step(self, pdar):
-        # put model in eval mode
-        self.model.eval()
-
-        # append new entry to logs
-        test_loss = 0
-
-        for key, metric_fn in self.metric_dict.items():
-            self.logs[key].append(0)
+        batches = len(self.test_dataloader)
+        loss_val = 0.0
+        metric_val = { name: 0.0 for name in self.metric_dict.keys() }
 
         # turn on inference context manager
+        self.network.eval()
         with torch.inference_mode():
-            batch_num = len(self.test_dataloader)
-
-            for batch, (x, y) in enumerate(self.test_dataloader):
-                # progress bar update
-                self._update_pdar(pdar, batch, batch_num, mode='testing')
-                    
+            for batch, data in enumerate(self.test_dataloader):
+                pdar.set_description(f"testing batch {batch}/{batches-1}")
+                data = to_device(data, self.device)
+                
                 # forward pass
-                y_pred = self.model(x)
+                infer = self.network(data)
 
                 # loss calculation
-                loss = self.loss_fn(y_pred, y)
-                test_loss += loss.item()
+                for name, loss in self.loss_dict.items():
+                    loss_val += loss['fn'](infer, data) * loss['weight']
 
                 # metric calculation
-                for key, metric_fn in self.metric_dict.items():
-                    self.logs[key][-1] += metric_fn(y, y_pred).item()
+                for name, metric in self.metric_dict.items():
+                    metric_val[name] += metric(infer, data)
 
         # averaging loss & metrics
-        data_num = len(self.test_dataloader)
-        self.logs['test_loss'].append(test_loss / data_num)
+        loss_val = loss_val / batches
 
-        for key, metric_fn in self.metric_dict.items():
-            self.logs[key][-1] = self.logs[key][-1] / data_num
+        for name, metric in self.metric_dict.items():
+            metric_val[name] = metric_val[name] / batches
 
-    def _log_step(self):
-        # save logs
-        pd.DataFrame(self.logs).to_csv(Path(self.opt.path) / 'logs.csv', index=False)
+        # todo: logging
 
-        # save model and optimizer if test loss is improved
-        epoch = self.logs['epoch'][-1]
-
-        if epoch == 0 or self.logs['test_loss'][-1] < min(self.logs['test_loss'][:-1]):
-            torch.save(self.model.state_dict(), Path(self.opt.path) / 'model.pth')
-            torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'optimizer.pth')
+    def _checkpoint_step(self):
+        pass
 
 
-# --- test scripts ---
+# --- bench scripts ---
 @SCRIPT_REGISTRY.register()
-class TestScript():
+class BenchScript():
     def __init__(self, opt):
         self.opt = opt
         
@@ -181,18 +146,11 @@ class TestScript():
 
         print(f'running on {self.device}...')
 
-        # init logs dict
-        self.logs = {
-            'dataset': [],
-            'time': [],
-        }
-
         # init metric dict
         self.metric_dict = {}
 
         for key, value in self.opt.benchmark.metric.items():
             self.metric_dict[key] = METRIC_REGISTRY[value.name](**value.args)
-            self.logs[key] = []
 
     def load_data(self):
         self.dataset_dict = {}
@@ -203,12 +161,10 @@ class TestScript():
             self.dataloader_dict[key] = DATALOADER_REGISTRY[value.dataloader.name](self.dataset_dict[key], **value.dataloader.args)
             print(f'load {key} dataset of {len(self.dataset_dict[key])} samples')
 
-        print('-'*50)
-
     def load_model(self):
-        self.model = MODEL_REGISTRY[self.opt.model.name](**self.opt.model.args)
-        self.model.to(self.device)
-        self.model.load_state_dict(torch.load(Path(self.opt.path) / 'model.pth'))
+        self.network = MODEL_REGISTRY[self.opt.network.name](**self.opt.network.args)
+        self.network.to(self.device)
+        self.network.load_state_dict(torch.load(Path(self.opt.path) / 'model.pth'))
 
     def benchmark_loop(self):
         self.start_time = time.time()
@@ -229,7 +185,7 @@ class TestScript():
 
     def _benchmark_step(self, pdar, dataset_name):
         # put model in eval mode
-        self.model.eval()
+        self.network.eval()
 
         # append new entry to logs
         for key, metric_fn in self.metric_dict.items():
@@ -244,7 +200,7 @@ class TestScript():
                 self._update_pdar(pdar, batch, batch_num, dataset_name)
                 
                 # forward pass
-                y_pred = self.model(x)
+                y_pred = self.network(x)
 
                 # metric calculation
                 for key, metric_fn in self.metric_dict.items():
@@ -259,78 +215,3 @@ class TestScript():
     def _log_step(self):
         # save logs
         pd.DataFrame(self.logs).to_csv(Path(self.opt.path) / 'benchmarks.csv', index=False)
-
-
-# --- sampling scripts for prediction example generation ---
-@SCRIPT_REGISTRY.register()
-class SamplingScript(TestScript):
-    def __init__(self, opt):
-        self.opt = opt
-        
-        # device select
-        if self.opt.device_select == 'auto':
-            if torch.cuda.is_available():
-                self.device = 'cuda'
-            if torch.backends.mps.is_available():
-                self.device = 'mps'
-            else:
-                self.device = 'cpu'
-        else:
-            self.device = self.opt.device_select
-
-        print(f'running on {self.device}...')
-
-        # init logs dict
-        self.logs = {
-            'dataset': [],
-            'time': [],
-        }
-
-        # init metric dict
-        # p.s. the difference from TestScript is that opt is also inputted to the metric class
-        self.metric_dict = {}
-
-        for key, value in self.opt.sampling.metric.items():
-            self.metric_dict[key] = METRIC_REGISTRY[value.name](opt=self.opt, **value.args)
-
-    def load_data(self):
-        self.dataset_dict = {}
-        self.dataloader_dict = {}
-
-        for key, value in self.opt.sampling.dataset.items():
-            self.dataset_dict[key] = DATASET_REGISTRY[value.name](device = self.device, **value.args)
-            self.dataloader_dict[key] = DATALOADER_REGISTRY[value.dataloader.name](self.dataset_dict[key], **value.dataloader.args)
-            print(f'load {key} dataset of {len(self.dataset_dict[key])} samples')
-
-        print('-'*50)
-
-    def _benchmark_step(self, pdar, dataset_name):
-        # put model in eval mode
-        self.model.eval()
-
-        # turn on inference context manager
-        with torch.inference_mode():
-            batch_num = len(self.dataloader_dict[dataset_name])
-            batch_select = self.opt.sampling.dataset[dataset_name].batch_select
-
-            for batch, (x, y) in enumerate(self.dataloader_dict[dataset_name]):
-                # generate and store prediction samples of the selected batches only
-                # p.s. storage code should be implemented in the metric class
-                if batch in batch_select:
-                    # progress bar update
-                    self._update_pdar(pdar, batch, batch_num, dataset_name)
-                    
-                    # forward pass
-                    y_pred = self.model(x)
-
-                    # metric calculation
-                    for key, metric_fn in self.metric_dict.items():
-                        metric_fn(y_pred, y, dataset_name, batch)
-
-                # break if all selected batches are processed to save time
-                if batch == batch_select[-1]:
-                    break
-
-    def _log_step(self):
-        # nothing to save
-        pass
