@@ -1,6 +1,7 @@
 device_select: auto
 network:
     name: URSSM
+    load_from: experiment/test-250605/checkpoint/model-11.pth
     feature_extractor:
         name: DiffusionNet
         args:
@@ -73,10 +74,11 @@ train:
     optimizer: 
         name: Adam
         epochs: 1
+        load_from: experiment/test-250605/checkpoint/optimizer-11.pth
         args:
             lr: 1.0e-3
-    test_interval: 10
-    checkpoint_interval: 10
+    test_interval: 500
+    checkpoint_interval: 500
     save_best: geodist
 # bench:
 #     script: BenchScript

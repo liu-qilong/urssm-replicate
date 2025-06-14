@@ -41,6 +41,20 @@ class TrainScript():
     def train_prep(self):
         # init/load model
         self.network = MODEL_REGISTRY[self.opt.network.name](self.opt).to(self.device)
+        print(f'initialized model {self.opt.network.name}')
+
+        if 'load_from' in self.opt.network:
+            pth_path = self.opt.network.load_from
+            self.network.load_state_dict(torch.load(pth_path, map_location=self.device))            
+            print(f'loaded model weights from {pth_path}')
+
+        # init optimizer
+        self.optimizer = OPTIMIZER_REGISTRY[self.opt.train.optimizer.name](**self.opt.train.optimizer.args, params=self.network.parameters())
+
+        if 'load_from' in self.opt.train.optimizer:
+            pth_path = self.opt.train.optimizer.load_from
+            self.optimizer.load_state_dict(torch.load(pth_path, map_location=self.device))            
+            print(f'loaded optimizer weights from {pth_path}')
 
         # init loss dict
         self.loss_dict = {}
@@ -56,9 +70,6 @@ class TrainScript():
 
         for name, metric in self.opt.train.metric.items():
             self.metric_dict[name] = METRIC_REGISTRY[metric['name']](**metric['args']).to(self.device)
-
-        # init optimizer
-        self.optimizer = OPTIMIZER_REGISTRY[self.opt.train.optimizer.name](**self.opt.train.optimizer.args, params=self.network.parameters())
 
     def train_loop(self):
         epochs = self.opt.train.optimizer.epochs
@@ -100,7 +111,7 @@ class TrainScript():
         loss_val = { name: 0.0 for name in self.loss_dict.keys() }
         metric_val = { name: 0.0 for name in self.metric_dict.keys() }
 
-        # turn on inference context manager
+        # turn on inference context manager & run the testing
         self.network.eval()
         with torch.inference_mode():
             for batch, data in enumerate(self.test_dataloader):
@@ -126,15 +137,19 @@ class TrainScript():
             self.writer.add_scalar(f'metric/test/{name}', val / batches, self.global_step)
 
         # save current model if it's the best so far
-        bench_name = self.opt.train.save_best
+        def save_best_model():
+            torch.save(self.network.state_dict(), os.path.join(self.opt.path, 'checkpoint', f'model-{self.global_step}-best.pth'))
+            torch.save(self.optimizer.state_dict(), os.path.join(self.opt.path, 'checkpoint', f'optimizer-{self.global_step}-best.pth'))
         
+        bench_name = self.opt.train.save_best
+
         if bench_name in self.loss_dict and self.best_bench > loss_val[bench_name]:
             self.best_bench = loss_val[bench_name]
-            torch.save(self.network.state_dict(), os.path.join(self.opt.path, 'checkpoint', 'model-best.pth'))
+            save_best_model()
 
         if bench_name in self.metric_dict and self.best_bench > metric_val[bench_name]:
             self.best_bench = metric_val[bench_name]
-            torch.save(self.network.state_dict(), os.path.join(self.opt.path, 'checkpoint', 'model-best.pth'))
+            save_best_model()
 
     def _checkpoint_step(self):
         # save model
