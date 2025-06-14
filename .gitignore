@@ -9,3 +9,4 @@ logs/
 *.csv
 *.pdf
 *.png
+*.tfevents.*

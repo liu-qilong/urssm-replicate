@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from tqdm.auto import tqdm
 
 import torch
@@ -26,8 +26,8 @@ class TrainScript():
             self.device = self.opt.device_select
 
         print(f'running on {self.device}...')
-        self.writer = SummaryWriter(os.path.join(self.opt.path, 'logs'))
-        os.makedirs(os.path.join(self.opt.path, 'checkpoint'), exist_ok=True)
+        self.writer = SummaryWriter(Path(self.opt.path) / 'log')
+        (Path(self.opt.path) / 'checkpoint').mkdir()
 
     def load_data(self):
         self.train_dataset = DATASET_REGISTRY[self.opt.train.dataset.train.name](**self.opt.train.dataset.train.args)
@@ -138,8 +138,8 @@ class TrainScript():
 
         # save current model if it's the best so far
         def save_best_model():
-            torch.save(self.network.state_dict(), os.path.join(self.opt.path, 'checkpoint', f'model-{self.global_step}-best.pth'))
-            torch.save(self.optimizer.state_dict(), os.path.join(self.opt.path, 'checkpoint', f'optimizer-{self.global_step}-best.pth'))
+            torch.save(self.network.state_dict(), Path(self.opt.path) / 'checkpoint' / f'model-{self.global_step}-best.pth')
+            torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'checkpoint' / f'optimizer-{self.global_step}-best.pth')
         
         bench_name = self.opt.train.save_best
 
@@ -153,97 +153,7 @@ class TrainScript():
 
     def _checkpoint_step(self):
         # save model
-        torch.save(self.network.state_dict(), os.path.join(self.opt.path, 'checkpoint', f'model-{self.global_step}.pth'))
+        torch.save(self.network.state_dict(), Path(self.opt.path) / 'checkpoint' / f'model-{self.global_step}.pth')
 
         # save optimizer state
-        torch.save(self.optimizer.state_dict(), os.path.join(self.opt.path, 'checkpoint', f'optimizer-{self.global_step}.pth'))
-
-
-# --- bench scripts ---
-# @SCRIPT_REGISTRY.register()
-# class BenchScript():
-#     def __init__(self, opt):
-#         self.opt = opt
-        
-#         # device select
-#         if self.opt.device_select == 'auto':
-#             if torch.cuda.is_available():
-#                 self.device = 'cuda'
-#             if torch.backends.mps.is_available():
-#                 self.device = 'mps'
-#             else:
-#                 self.device = 'cpu'
-#         else:
-#             self.device = self.opt.device_select
-
-#         print(f'running on {self.device}...')
-
-#         # init metric dict
-#         self.metric_dict = {}
-
-#         for key, value in self.opt.benchmark.metric.items():
-#             self.metric_dict[key] = METRIC_REGISTRY[value.name](**value.args)
-
-#     def load_data(self):
-#         self.dataset_dict = {}
-#         self.dataloader_dict = {}
-
-#         for key, value in self.opt.benchmark.dataset.items():
-#             self.dataset_dict[key] = DATASET_REGISTRY[value.name](device = self.device, **value.args)
-#             self.dataloader_dict[key] = DATALOADER_REGISTRY[value.dataloader.name](self.dataset_dict[key], **value.dataloader.args)
-#             print(f'load {key} dataset of {len(self.dataset_dict[key])} samples')
-
-#     def load_model(self):
-#         self.network = MODULE_REGISTRY[self.opt.network.name](**self.opt.network.args)
-#         self.network.to(self.device)
-#         self.network.load_state_dict(torch.load(Path(self.opt.path) / 'model.pth'))
-
-#     def benchmark_loop(self):
-#         self.start_time = time.time()
-
-#         # for epoch in (pdar := tqdm(range(self.opt.train.optimizer.epochs))):
-#         for dataset_name in (pdar := tqdm(self.dataloader_dict.keys())):
-#             self.logs['dataset'].append(dataset_name)
-#             self.logs['time'].append(time.strftime('%Y/%m/%d %H:%M:%S UTC', time.gmtime(time.time())))
-
-#             self._benchmark_step(pdar, dataset_name)
-#             self._log_step()
-
-#     def _update_pdar(self, pdar, batch, batch_num, dataset_name):
-#         pdar.set_description(
-#             f'benchmarking batch {batch}/{batch_num - 1} '\
-#             f'of {dataset_name} dataset | '\
-#             f'time {self.logs["time"][-1]} | ')
-
-#     def _benchmark_step(self, pdar, dataset_name):
-#         # put model in eval mode
-#         self.network.eval()
-
-#         # append new entry to logs
-#         for key, metric_fn in self.metric_dict.items():
-#             self.logs[key].append(0)
-
-#         # turn on inference context manager
-#         with torch.inference_mode():
-#             batch_num = len(self.dataloader_dict[dataset_name])
-
-#             for batch, (x, y) in enumerate(self.dataloader_dict[dataset_name]):
-#                 # progress bar update
-#                 self._update_pdar(pdar, batch, batch_num, dataset_name)
-                
-#                 # forward pass
-#                 y_pred = self.network(x)
-
-#                 # metric calculation
-#                 for key, metric_fn in self.metric_dict.items():
-#                     self.logs[key][-1] += metric_fn(y, y_pred).item()
-
-#         # averaging
-#         data_num = len(self.dataloader_dict[dataset_name])
-
-#         for key, metric_fn in self.metric_dict.items():
-#             self.logs[key][-1] = self.logs[key][-1] / data_num
-
-#     def _log_step(self):
-#         # save logs
-#         pd.DataFrame(self.logs).to_csv(Path(self.opt.path) / 'benchmarks.csv', index=False)
+        torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'checkpoint' / f'optimizer-{self.global_step}.pth')
