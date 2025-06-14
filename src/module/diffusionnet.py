@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from src.utils.geometry import get_all_operators, to_basis, from_basis, compute_hks_autoscale, compute_wks_autoscale, data_augmentation
-from src.infra.registry import MODEL_REGISTRY
+from src.infra.registry import MODULE_REGISTRY
 
 
 class LearnedTimeDiffusion(nn.Module):
@@ -249,7 +249,7 @@ class DiffusionNetBlock(nn.Module):
         return feat_out
 
 
-@MODEL_REGISTRY.register()
+@MODULE_REGISTRY.register()
 class DiffusionNet(nn.Module):
     """
     DiffusionNet: stacked of DiffusionBlock

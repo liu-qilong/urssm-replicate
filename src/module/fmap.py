@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 
-from src.infra.registry import MODEL_REGISTRY
+from src.infra.registry import MODULE_REGISTRY
 
 
 def _get_mask(evals1, evals2, resolvant_gamma):
@@ -24,7 +24,7 @@ def get_mask(evals1, evals2, resolvant_gamma):
     return torch.stack(masks, dim=0)
 
 
-@MODEL_REGISTRY.register()
+@MODULE_REGISTRY.register()
 class RegularizedFMNet(nn.Module):
     """Compute the functional map matrix representation in DPFM"""
     def __init__(self, lmbda=100, resolvant_gamma=0.5):

@@ -3,21 +3,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.utils.fmap import fmap2pointmap
-from src.infra.registry import MODEL_REGISTRY
+from src.infra.registry import NETWORK_REGISTRY, MODULE_REGISTRY
 
-@MODEL_REGISTRY.register()
+@NETWORK_REGISTRY.register()
 class URSSM(nn.Module):
     def __init__(self, opt):
         super(URSSM, self).__init__()
         self.opt = opt
 
-        self.feature_extractor = MODEL_REGISTRY[self.opt.network.feature_extractor.name](
+        self.feature_extractor = MODULE_REGISTRY[self.opt.network.feature_extractor.name](
             **self.opt.network.feature_extractor.args
         )
-        self.fm_solver = MODEL_REGISTRY[self.opt.network.fm_solver.name](
+        self.fm_solver = MODULE_REGISTRY[self.opt.network.fm_solver.name](
             **self.opt.network.fm_solver.args
         )
-        self.permutation = MODEL_REGISTRY[self.opt.network.permutation.name](
+        self.permutation = MODULE_REGISTRY[self.opt.network.permutation.name](
             **self.opt.network.permutation.args
         )
 

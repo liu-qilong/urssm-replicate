@@ -3,10 +3,10 @@
 import torch
 import torch.nn as nn
 
-from src.infra.registry import MODEL_REGISTRY
+from src.infra.registry import MODULE_REGISTRY
 
 
-@MODEL_REGISTRY.register()
+@MODULE_REGISTRY.register()
 class Similarity(nn.Module):
     def __init__(self, normalise_dim=-1, tau=0.2, hard=False):
         super(Similarity, self).__init__()

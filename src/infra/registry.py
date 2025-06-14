@@ -22,7 +22,8 @@ class Registry(dict):
 
 DATASET_REGISTRY = Registry('dataset')
 DATALOADER_REGISTRY = Registry('dataloader')
-MODEL_REGISTRY = Registry('model')
+NETWORK_REGISTRY = Registry('network')
+MODULE_REGISTRY = Registry('module')
 LOSS_REGISTRY = Registry('loss')
 METRIC_REGISTRY = Registry('metric')
 OPTIMIZER_REGISTRY = Registry('optimizer')

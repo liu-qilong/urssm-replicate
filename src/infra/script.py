@@ -4,7 +4,7 @@ from tqdm.auto import tqdm
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from src.infra.registry import DATASET_REGISTRY, DATALOADER_REGISTRY, MODEL_REGISTRY, LOSS_REGISTRY, METRIC_REGISTRY, OPTIMIZER_REGISTRY, SCRIPT_REGISTRY
+from src.infra.registry import DATASET_REGISTRY, DATALOADER_REGISTRY, NETWORK_REGISTRY, MODULE_REGISTRY, LOSS_REGISTRY, METRIC_REGISTRY, OPTIMIZER_REGISTRY, SCRIPT_REGISTRY
 from src.utils.tensor import to_device
 
 
@@ -40,12 +40,12 @@ class TrainScript():
 
     def train_prep(self):
         # init/load model
-        self.network = MODEL_REGISTRY[self.opt.network.name](self.opt).to(self.device)
+        self.network = NETWORK_REGISTRY[self.opt.network.name](self.opt).to(self.device)
         print(f'initialized model {self.opt.network.name}')
 
         if 'load_from' in self.opt.network:
             pth_path = self.opt.network.load_from
-            self.network.load_state_dict(torch.load(pth_path, map_location=self.device))            
+            self.network.load_state_dict(torch.load(pth_path, map_location=self.device))
             print(f'loaded model weights from {pth_path}')
 
         # init optimizer
@@ -194,7 +194,7 @@ class TrainScript():
 #             print(f'load {key} dataset of {len(self.dataset_dict[key])} samples')
 
 #     def load_model(self):
-#         self.network = MODEL_REGISTRY[self.opt.network.name](**self.opt.network.args)
+#         self.network = MODULE_REGISTRY[self.opt.network.name](**self.opt.network.args)
 #         self.network.to(self.device)
 #         self.network.load_state_dict(torch.load(Path(self.opt.path) / 'model.pth'))
 
