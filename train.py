@@ -14,9 +14,7 @@ if __name__ == '__main__':
     # load options
     opt = config.load_config(args.path)
     opt.path = args.path
-
     print(f'loaded configrations from {Path(args.path) / "config.yaml"}')
-    print('-'*50)
 
     # torch setup
     torch.manual_seed(0)

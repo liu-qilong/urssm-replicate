@@ -38,58 +38,111 @@ class SURFMNetLoss(nn.Module):
         self.w_lap = w_lap
         self.squared_frobenius = SquaredFrobeniusLoss()
 
-    def forward(self, C12, C21, evals_1, evals_2):
+    def cal(self, Cxy, Cyx, evals_x, evals_y):
         """
         bijectivity loss + orthogonality loss + Laplacian commutativity loss
 
         Args:
-            C12 (torch.Tensor): matrix representation of functional map (1->2). Shape: [N, K, K]
-            C21 (torch.Tensor): matrix representation of functional map (2->1). Shape: [N, K, K]
-            evals_1 (torch.Tensor): eigenvalues of shape 1. Shape [N, K]
-            evals_2 (torch.Tensor): eigenvalues of shape 2. Shape [N, K]
+            Cxy (torch.Tensor): matrix representation of functional map (1->2). Shape: [N, K, K]
+            Cyx (torch.Tensor): matrix representation of functional map (2->1). Shape: [N, K, K]
+            evals_x (torch.Tensor): eigenvalues of shape 1. Shape [N, K]
+            evals_y (torch.Tensor): eigenvalues of shape 2. Shape [N, K]
         """
-        eye = torch.eye(C12.shape[1], C12.shape[2], device=C12.device).unsqueeze(0)
-        eye_batch = torch.repeat_interleave(eye, repeats=C12.shape[0], dim=0)
+        eye = torch.eye(Cxy.shape[1], Cxy.shape[2], device=Cxy.device).unsqueeze(0)
+        eye_batch = torch.repeat_interleave(eye, repeats=Cxy.shape[0], dim=0)
         loss = 0.0
 
         # bijectivity penalty
         if self.w_bij > 0:
             loss += ( \
-                self.squared_frobenius(torch.bmm(C12, C21), eye_batch) +
-                self.squared_frobenius(torch.bmm(C21, C12), eye_batch) \
+                self.squared_frobenius(torch.bmm(Cxy, Cyx), eye_batch) +
+                self.squared_frobenius(torch.bmm(Cyx, Cxy), eye_batch) \
             ) * self.w_bij
 
         # orthogonality penalty
         if self.w_orth > 0:
             loss += ( \
-                self.squared_frobenius(torch.bmm(C12.transpose(1, 2), C12), eye_batch) \
-                + self.squared_frobenius(torch.bmm(C21.transpose(1, 2), C21), eye_batch) \
+                self.squared_frobenius(torch.bmm(Cxy.transpose(1, 2), Cxy), eye_batch) \
+                + self.squared_frobenius(torch.bmm(Cyx.transpose(1, 2), Cyx), eye_batch) \
             ) * self.w_orth
 
         # laplacian commutativity penalty
         if self.w_lap > 0:
             loss += ( self.squared_frobenius(
-                    torch.einsum('abc,ac->abc', C12, evals_1),
-                    torch.einsum('ab,abc->abc', evals_2, C12),
+                    torch.einsum('abc,ac->abc', Cxy, evals_x),
+                    torch.einsum('ab,abc->abc', evals_y, Cxy),
                 ) \
                 + self.squared_frobenius(
-                    torch.einsum('abc,ac->abc', C21, evals_2),
-                    torch.einsum('ab,abc->abc', evals_1, C21),
+                    torch.einsum('abc,ac->abc', Cyx, evals_y),
+                    torch.einsum('ab,abc->abc', evals_x, Cyx),
                 ) \
             ) * self.w_lap
 
         return loss
 
+    def forward(self, infer, data):
+        Cxy = infer['Cxy']
+        Cyx = infer['Cyx']
+        evals_x = data['first']['evals']
+        evals_y = data['second']['evals']
+
+        return self.cal(Cxy, Cyx, evals_x, evals_y)
+
 
 @LOSS_REGISTRY.register()
-class SURFMNetLoss_wrap(SURFMNetLoss):
-    def forward(self, infer, data):
-        C12 = infer['Cxy']
-        C21 = infer['Cyx']
-        evals_1 = data['first']['evals']
-        evals_2 = data['second']['evals']
+class BijectivityLoss(nn.Module):
+    def __init__(self):
+        super(BijectivityLoss, self).__init__()
+        self.squared_frobenius = SquaredFrobeniusLoss()
 
-        return super().forward(C12, C21, evals_1, evals_2)
+    def cal(self, Cxy, Cyx):
+        return self.squared_frobenius(torch.bmm(Cxy, Cyx), torch.eye(Cxy.shape[-1], device=Cxy.device))
+
+    def forward(self, infer, data):
+        Cxy = infer['Cxy']
+        Cyx = infer['Cyx']
+
+        return self.cal(Cxy, Cyx) + self.cal(Cyx, Cxy)
+
+
+@LOSS_REGISTRY.register()
+class OrthogonalityLoss(nn.Module):
+    def __init__(self):
+        super(OrthogonalityLoss, self).__init__()
+        self.squared_frobenius = SquaredFrobeniusLoss()
+
+    def cal(self, Cxy, Cyx):
+        return self.squared_frobenius(torch.bmm(Cxy.transpose(-2, -1), Cxy), torch.eye(Cxy.shape[-1], device=Cxy.device))
+
+    def forward(self, infer, data):
+        Cxy = infer['Cxy']
+        Cyx = infer['Cyx']
+
+        return self.cal(Cxy, Cyx) + self.cal(Cyx, Cxy)
+
+
+@LOSS_REGISTRY.register()
+class LaplacianCommutativityLoss(nn.Module):
+    def __init__(self):
+        super(LaplacianCommutativityLoss, self).__init__()
+        self.squared_frobenius = SquaredFrobeniusLoss()
+
+    def cal(self, Cxy, Cyx, evals_x, evals_y):
+        return (self.squared_frobenius(
+            torch.einsum('abc,ac->abc', Cxy, evals_x),
+            torch.einsum('ab,abc->abc', evals_y, Cxy),
+        ) + self.squared_frobenius(
+            torch.einsum('abc,ac->abc', Cyx, evals_y),
+            torch.einsum('ab,abc->abc', evals_x, Cyx),
+        ))
+
+    def forward(self, infer, data):
+        Cxy = infer['Cxy']
+        Cyx = infer['Cyx']
+        evals_x = data['first']['evals']
+        evals_y = data['second']['evals']
+
+        return self.cal(Cxy, Cyx, evals_x, evals_y)
 
 
 @LOSS_REGISTRY.register()
@@ -98,7 +151,7 @@ class SpatialSpectralAlignmentLoss(nn.Module):
         super(SpatialSpectralAlignmentLoss, self).__init__()
         self.squared_frobenius = SquaredFrobeniusLoss()
 
-    def forward(self, Cxy, Cyx, Pxy, Pyx, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y):
+    def cal(self, Cxy, Cyx, Pxy, Pyx, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y):
         Cxy_est = torch.bmm(
             evecs_trans_y,
             torch.bmm(Pyx, evecs_x),
@@ -111,9 +164,6 @@ class SpatialSpectralAlignmentLoss(nn.Module):
 
         return self.squared_frobenius(Cxy, Cxy_est) + self.squared_frobenius(Cyx, Cyx_est)
 
-
-@LOSS_REGISTRY.register()
-class SpatialSpectralAlignmentLoss_wrap(SpatialSpectralAlignmentLoss):
     def forward(self, infer, data):
         Cxy = infer['Cxy']
         Cyx = infer['Cyx']
@@ -124,8 +174,8 @@ class SpatialSpectralAlignmentLoss_wrap(SpatialSpectralAlignmentLoss):
         evecs_trans_x = data['first']['evecs_trans']
         evecs_trans_y = data['second']['evecs_trans']
 
-        return super().forward(Cxy, Cyx, Pxy, Pyx, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y)
-
+        return self.cal(Cxy, Cyx, Pxy, Pyx, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y)
+    
 
 @LOSS_REGISTRY.register()
 class PartialFmapsLoss(nn.Module):
