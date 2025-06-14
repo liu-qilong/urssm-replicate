@@ -75,8 +75,9 @@ train:
         epochs: 1
         args:
             lr: 1.0e-3
-    test_interval: 500
-    checkpoint_interval: 500
+    test_interval: 10
+    checkpoint_interval: 10
+    save_best: geodist
 # bench:
 #     script: BenchScript
 #     dataset:

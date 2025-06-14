@@ -3,6 +3,7 @@ __pycache__/
 
 data/
 output/
+logs/
 
 *.pth
 *.csv

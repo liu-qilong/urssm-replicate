@@ -1,5 +1,8 @@
-import torch
+import os
 from tqdm.auto import tqdm
+
+import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from src.infra.registry import DATASET_REGISTRY, DATALOADER_REGISTRY, MODEL_REGISTRY, LOSS_REGISTRY, METRIC_REGISTRY, OPTIMIZER_REGISTRY, SCRIPT_REGISTRY
 from src.utils.tensor import to_device
@@ -23,6 +26,8 @@ class TrainScript():
             self.device = self.opt.device_select
 
         print(f'running on {self.device}...')
+        self.writer = SummaryWriter(os.path.join(self.opt.path, 'logs'))
+        os.makedirs(os.path.join(self.opt.path, 'checkpoint'), exist_ok=True)
 
     def load_data(self):
         self.train_dataset = DATASET_REGISTRY[self.opt.train.dataset.train.name](**self.opt.train.dataset.train.args)
@@ -57,39 +62,42 @@ class TrainScript():
 
     def train_loop(self):
         epochs = self.opt.train.optimizer.epochs
+        self.global_step = 0
+        self.best_bench = torch.inf
         
         for epoch in range(epochs):
             for batch, data in (pdar := tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))):
                 pdar.set_description(f"epoch {epoch}/{epochs-1}")
+                self.global_step += 1
 
                 self.network.train()
                 data = to_device(data, self.device)
                 self._train_step(data)
 
-                if batch != 0 and batch % self.opt.train.test_interval == 0:
+                if self.global_step != 0 and self.global_step % self.opt.train.test_interval == 0:
                     self._test_step(pdar)
-                    pass
 
-                if batch != 0 and batch % self.opt.train.checkpoint_interval == 0:
-                    pdar.set_description(f"checkpointing")
+                if self.global_step != 0 and self.global_step % self.opt.train.checkpoint_interval == 0:
                     self._checkpoint_step()
 
     def _train_step(self, data):
         # forward pass & loss calculation
         infer = self.network(data)
-        loss_val = 0.0
+        loss_total = 0.0
 
         for name, loss in self.loss_dict.items():
-            loss_val += loss['fn'](infer, data) * loss['weight']
+            loss_val = loss['fn'](infer, data) * loss['weight']
+            loss_total += loss_val
+            self.writer.add_scalar(f'loss/train/{name}', loss_val.item(), self.global_step)
 
         # loss backward
         self.optimizer.zero_grad()
-        loss_val.backward()
+        loss_total.backward()
         self.optimizer.step()
 
     def _test_step(self, pdar):
         batches = len(self.test_dataloader)
-        loss_val = 0.0
+        loss_val = { name: 0.0 for name in self.loss_dict.keys() }
         metric_val = { name: 0.0 for name in self.metric_dict.keys() }
 
         # turn on inference context manager
@@ -104,22 +112,36 @@ class TrainScript():
 
                 # loss calculation
                 for name, loss in self.loss_dict.items():
-                    loss_val += loss['fn'](infer, data) * loss['weight']
+                    loss_val[name] += loss['fn'](infer, data) * loss['weight']
 
                 # metric calculation
                 for name, metric in self.metric_dict.items():
                     metric_val[name] += metric(infer, data)
 
-        # averaging loss & metrics
-        loss_val = loss_val / batches
+        # logging
+        for name, val in loss_val.items():
+            self.writer.add_scalar(f'loss/test/{name}', val / batches, self.global_step)
 
-        for name, metric in self.metric_dict.items():
-            metric_val[name] = metric_val[name] / batches
+        for name, val in metric_val.items():
+            self.writer.add_scalar(f'metric/test/{name}', val / batches, self.global_step)
 
-        # todo: logging
+        # save current model if it's the best so far
+        bench_name = self.opt.train.save_best
+        
+        if bench_name in self.loss_dict and self.best_bench > loss_val[bench_name]:
+            self.best_bench = loss_val[bench_name]
+            torch.save(self.network.state_dict(), os.path.join(self.opt.path, 'checkpoint', 'model-best.pth'))
+
+        if bench_name in self.metric_dict and self.best_bench > metric_val[bench_name]:
+            self.best_bench = metric_val[bench_name]
+            torch.save(self.network.state_dict(), os.path.join(self.opt.path, 'checkpoint', 'model-best.pth'))
 
     def _checkpoint_step(self):
-        pass
+        # save model
+        torch.save(self.network.state_dict(), os.path.join(self.opt.path, 'checkpoint', f'model-{self.global_step}.pth'))
+
+        # save optimizer state
+        torch.save(self.optimizer.state_dict(), os.path.join(self.opt.path, 'checkpoint', f'optimizer-{self.global_step}.pth'))
 
 
 # --- bench scripts ---
