@@ -72,6 +72,7 @@ class TrainScript():
             self.metric_dict[name] = METRIC_REGISTRY[metric['name']](**metric['args']).to(self.device)
 
     def train_loop(self):
+        print('-' * 100)
         epochs = self.opt.train.optimizer.epochs
         self.global_step = 0
         self.best_bench = torch.inf
@@ -91,6 +92,10 @@ class TrainScript():
                 if self.global_step != 0 and self.global_step % self.opt.train.checkpoint_interval == 0:
                     self._checkpoint_step()
 
+        # final test & checkpoint
+        self._test_step()
+        self._checkpoint_step()
+
     def _train_step(self, data):
         # forward pass & loss calculation
         infer = self.network(data)
@@ -106,7 +111,7 @@ class TrainScript():
         loss_total.backward()
         self.optimizer.step()
 
-    def _test_step(self, pdar):
+    def _test_step(self, pdar=None):
         batches = len(self.test_dataloader)
         loss_val = { name: 0.0 for name in self.loss_dict.keys() }
         metric_val = { name: 0.0 for name in self.metric_dict.keys() }
@@ -115,7 +120,9 @@ class TrainScript():
         self.network.eval()
         with torch.inference_mode():
             for batch, data in enumerate(self.test_dataloader):
-                pdar.set_description(f"testing batch {batch}/{batches-1}")
+                if pdar is not None:
+                    pdar.set_description(f"testing batch {batch}/{batches-1}")
+                
                 data = to_device(data, self.device)
                 
                 # forward pass
@@ -138,8 +145,8 @@ class TrainScript():
 
         # save current model if it's the best so far
         def save_best_model():
-            torch.save(self.network.state_dict(), Path(self.opt.path) / 'checkpoint' / f'model-{self.global_step}-best.pth')
-            torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'checkpoint' / f'optimizer-{self.global_step}-best.pth')
+            torch.save(self.network.state_dict(), Path(self.opt.path) / 'checkpoint' / f'model-best.pth')
+            torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'checkpoint' / f'optimizer-best.pth')
         
         bench_name = self.opt.train.save_best
 

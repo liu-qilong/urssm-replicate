@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
     shutil.copy(args.config, Path(opt.path) / Path(args.config).name)
     print(f"copied configurations to {Path(opt.path) / 'config.yaml'}")
-    print('-' * 50)
+    print('-' * 100)
 
     # torch setup
     torch.manual_seed(0)
