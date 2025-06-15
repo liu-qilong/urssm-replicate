@@ -1,12 +1,12 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
+from src.network import BaseNetwork
 from src.utils.fmap import fmap2pointmap
 from src.infra.registry import NETWORK_REGISTRY, MODULE_REGISTRY
 
 @NETWORK_REGISTRY.register()
-class URSSM(nn.Module):
+class URSSM(BaseNetwork):
     def __init__(self, opt):
         super(URSSM, self).__init__()
         self.opt = opt
@@ -21,20 +21,16 @@ class URSSM(nn.Module):
             **self.opt.network.permutation.args
         )
 
-    def forward(self, data):
-        data_x, data_y = data['first'], data['second']
-
+    def forward(self, verts_x, verts_y, faces_x, faces_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y):
         # feature extractor
-        feat_x = self.feature_extractor(data_x['verts'], data_x['faces'])
-        feat_y = self.feature_extractor(data_y['verts'], data_y['faces'])
+        feat_x = self.feature_extractor(verts_x, faces_x)
+        feat_y = self.feature_extractor(verts_y, faces_y)
 
         # fm solver
         Cxy, Cyx = self.fm_solver(
             feat_x, feat_y,
-            data_x['evals'],
-            data_y['evals'],
-            data_x['evecs_trans'],
-            data_y['evecs_trans'],
+            evals_x, evals_y,
+            evecs_trans_x, evecs_trans_y,
             bidirectional=True,
         )
 
@@ -54,20 +50,28 @@ class URSSM(nn.Module):
             'Pyx': Pyx,
         }
 
-    def inference(self, data):
-        data_x, data_y = data['first'], data['second']
+    def feed(self, data):
+        verts_x = data['first']['verts']
+        verts_y = data['second']['verts']
+        faces_x = data['first']['faces']
+        faces_y = data['second']['faces']
+        evals_x = data['first']['evals']
+        evals_y = data['second']['evals']
+        evecs_trans_x = data['first']['evecs_trans']
+        evecs_trans_y = data['second']['evecs_trans']
 
+        return self(verts_x, verts_y, faces_x, faces_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y)
+
+    def inference(self, verts_x, verts_y, faces_x, faces_y, evals_x, evals_y, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y):
         # feature extractor
-        feat_x = self.feature_extractor(data_x['verts'], data_x['faces'])
-        feat_y = self.feature_extractor(data_y['verts'], data_y['faces'])
+        feat_x = self.feature_extractor(verts_x, faces_x)
+        feat_y = self.feature_extractor(verts_y, faces_y)
 
         # fm solver
         Cxy, _ = self.fm_solver(
             feat_x, feat_y,
-            data_x['evals'],
-            data_y['evals'],
-            data_x['evecs_trans'],
-            data_y['evecs_trans'],
+            evals_x, evals_y,
+            evecs_trans_x, evecs_trans_y,
             bidirectional=False,
         )
 
@@ -76,9 +80,9 @@ class URSSM(nn.Module):
         Pyx = []
         for it in range(Cxy.shape[0]):
             # todo: make it works on batch
-            p2p_ = fmap2pointmap(Cxy[it], data_x['evecs'][it], data_y['evecs'][it])
-            C_ = data_y['evecs_trans'][it] @ data_x['evecs'][it][p2p_]
-            P_ = data_y['evecs'][it] @ C_ @ data_x['evecs_trans'][it]
+            p2p_ = fmap2pointmap(Cxy[it], evecs_x[it], evecs_y[it])
+            C_ = evecs_trans_y[it] @ evecs_x[it][p2p_]
+            P_ = evecs_y[it] @ C_ @ evecs_trans_x[it]
 
             p2p.append(p2p_)
             Pyx.append(P_)

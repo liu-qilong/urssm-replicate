@@ -58,12 +58,11 @@ class TrainScript():
 
         # init loss dict
         self.loss_dict = {}
+        self.loss_weight = {}
 
         for name, loss in self.opt.train.loss.items():
-            self.loss_dict[name] = {
-                'fn': LOSS_REGISTRY[loss['name']](**loss['args']).to(self.device),
-                'weight': loss['weight'],
-            }
+            self.loss_dict[name] = LOSS_REGISTRY[loss['name']](**loss['args']).to(self.device)
+            self.loss_weight[name] = loss['weight']
         
         # init metric dict
         self.metric_dict = {}
@@ -76,13 +75,13 @@ class TrainScript():
         epochs = self.opt.train.optimizer.epochs
         self.global_step = 0
         self.best_bench = torch.inf
-        
+        self.network.start_feed(self)
+
         for epoch in range(epochs):
-            for batch, data in (pdar := tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))):
+            for batch, data in (pdar := tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader), dynamic_ncols=True)):
                 pdar.set_description(f"epoch {epoch}/{epochs-1}")
                 self.global_step += 1
 
-                self.network.train()
                 data = to_device(data, self.device)
                 self._train_step(data)
 
@@ -92,18 +91,24 @@ class TrainScript():
                 if self.global_step != 0 and self.global_step % self.opt.train.checkpoint_interval == 0:
                     self._checkpoint_step()
 
+        self.network.end_feed()
+
         # final test & checkpoint
         self._test_step()
         self._checkpoint_step()
+        self.writer.flush()
 
     def _train_step(self, data):
+        self.network.train()
+
         # forward pass & loss calculation
-        infer = self.network(data)
+        infer = self.network.feed(data)
         loss_total = 0.0
 
         for name, loss in self.loss_dict.items():
-            loss_val = loss['fn'](infer, data) * loss['weight']
-            loss_total += loss_val
+            loss.train()
+            loss_val = loss.feed(infer, data)
+            loss_total += loss_val * self.loss_weight[name]
             self.writer.add_scalar(f'loss/train/{name}', loss_val.item(), self.global_step)
 
         # loss backward
@@ -112,36 +117,45 @@ class TrainScript():
         self.optimizer.step()
 
     def _test_step(self, pdar=None):
-        batches = len(self.test_dataloader)
-        loss_val = { name: 0.0 for name in self.loss_dict.keys() }
-        metric_val = { name: 0.0 for name in self.metric_dict.keys() }
+        # turn on eval mode and start feed
+        self.network.eval()
+
+        for name, loss in self.loss_dict.items():
+            loss.eval()
+            loss.start_feed(self, name)
+
+        for name, metric in self.metric_dict.items():
+            metric.eval()
+            metric.start_feed(self, name)
 
         # turn on inference context manager & run the testing
-        self.network.eval()
         with torch.inference_mode():
             for batch, data in enumerate(self.test_dataloader):
+                if batch > 10:
+                    break
+
                 if pdar is not None:
-                    pdar.set_description(f"testing batch {batch}/{batches-1}")
+                    pdar.set_description(f"testing batch {batch}/{len(self.test_dataloader) - 1}")
                 
                 data = to_device(data, self.device)
                 
                 # forward pass
-                infer = self.network(data)
+                infer = self.network.feed(data)
 
                 # loss calculation
                 for name, loss in self.loss_dict.items():
-                    loss_val[name] += loss['fn'](infer, data) * loss['weight']
+                    loss.feed(infer, data)
 
                 # metric calculation
                 for name, metric in self.metric_dict.items():
-                    metric_val[name] += metric(infer, data)
+                    metric.feed(infer, data)
 
-        # logging
-        for name, val in loss_val.items():
-            self.writer.add_scalar(f'loss/test/{name}', val / batches, self.global_step)
+        # end feed
+        for name, loss in self.loss_dict.items():
+            loss.end_feed()
 
-        for name, val in metric_val.items():
-            self.writer.add_scalar(f'metric/test/{name}', val / batches, self.global_step)
+        for name, metric in self.metric_dict.items():
+            metric.end_feed()
 
         # save current model if it's the best so far
         def save_best_model():
@@ -150,12 +164,12 @@ class TrainScript():
         
         bench_name = self.opt.train.save_best
 
-        if bench_name in self.loss_dict and self.best_bench > loss_val[bench_name]:
-            self.best_bench = loss_val[bench_name]
+        if bench_name in self.loss_dict and self.best_bench > self.loss_dict[bench_name].loss_avg:
+            self.best_bench = self.loss_dict[bench_name].loss_avg
             save_best_model()
 
-        if bench_name in self.metric_dict and self.best_bench > metric_val[bench_name]:
-            self.best_bench = metric_val[bench_name]
+        if bench_name in self.metric_dict and self.best_bench > self.metric_dict[bench_name].metric_avg:
+            self.best_bench = self.metric_dict[bench_name].metric_avg
             save_best_model()
 
     def _checkpoint_step(self):
