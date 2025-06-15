@@ -1,6 +1,5 @@
 # This implementation is adapted from Dongliang Cao, et al. (2024): https://github.com/dongliangcao/unsupervised-learning-of-robust-spectral-shape-matching
 
-import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -38,28 +37,28 @@ class GeodesicDist(BaseMetric):
         else:
             return geo_err
 
-
     def pck_and_auc(self, dists):
         # compute pck
         dists = np.ravel(dists)
         thresholds = np.linspace(0., self.pck_threshold, self.pck_steps)
-        pcks = []
+        pck_ls = []
 
         for i in range(thresholds.shape[0]):
             thres = thresholds[i]
             pck = np.mean((dists <= thres).astype(float))
-            pcks.append(pck)
-        pcks = np.array(pcks)
+            pck_ls.append(pck)
+
+        pck_arr = np.array(pck_ls)
 
         # compute auc
-        auc = np.trapz(pcks, np.linspace(0., 1., self.pck_steps))
-        return pck, auc
+        auc = np.trapz(pck_arr, np.linspace(0., 1., self.pck_steps))
+        return pck_arr, auc
 
     def forward(self, Cxy, evecs_x, evecs_y, dist_x, corr_x, corr_y):
         num = Cxy.shape[0]
         dist_sum = 0.0
         auc_sum = 0.0
-        pck_array_sum = np.zeros(self.pck_steps)
+        pck_arr_sum = np.zeros(self.pck_steps)
 
         for it in range(num):
             p2p = fmap2pointmap(Cxy[it], evecs_x[it], evecs_y[it])
@@ -74,9 +73,9 @@ class GeodesicDist(BaseMetric):
 
             dist_sum += dists.sum()
             auc_sum += auc
-            pck_array_sum += pck
+            pck_arr_sum += pck
 
-        return dist_sum, auc_sum, pck_array_sum
+        return dist_sum, auc_sum, pck_arr_sum
 
     def start_feed(self, script, name):
         """Method to start feeding the metric method. Typically called at the beginning of the testing/benchmark epoch
@@ -92,7 +91,7 @@ class GeodesicDist(BaseMetric):
             self.metric_total = 0.0
             self.metric_avg = 0.0
             self.auc_total = 0.0
-            self.pck_array = np.zeros(self.pck_steps)
+            self.pck_arr_total = np.zeros(self.pck_steps)
             self.sample_total = 0
 
     def feed(self, infer, data):
@@ -102,13 +101,13 @@ class GeodesicDist(BaseMetric):
         dist_x = data['first']['dist']
         corr_x = data['first']['corr']
         corr_y = data['second']['corr']
-        dist_sum, auc_sum, pck_array_sum = self(Cxy, evecs_x, evecs_y, dist_x, corr_x, corr_y)
+        dist_sum, auc_sum, pck_arr_sum = self(Cxy, evecs_x, evecs_y, dist_x, corr_x, corr_y)
 
         # if self.eval() is called, gather total metric
         if not self.training:
             self.metric_total += dist_sum
             self.auc_total += auc_sum
-            self.pck_array += pck_array_sum
+            self.pck_arr_total += pck_arr_sum
             self.sample_total += len(Cxy)
 
     def end_feed(self):
@@ -122,7 +121,7 @@ class GeodesicDist(BaseMetric):
             fig = plt.figure()
             plt.plot(
                 np.linspace(0., self.pck_threshold, self.pck_steps),
-                self.pck_array / self.sample_total,
+                self.pck_arr_total / self.sample_total,
             )
             plt.xlabel('geodist')
             plt.ylabel('ratio')

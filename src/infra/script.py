@@ -85,15 +85,16 @@ class TrainScript():
                 data = to_device(data, self.device)
                 self._train_step(data)
 
-                if self.global_step != 0 and self.global_step % self.opt.train.test_interval == 0:
+                if self.global_step % self.opt.train.test_interval == 0:
                     self._test_step(pdar)
 
-                if self.global_step != 0 and self.global_step % self.opt.train.checkpoint_interval == 0:
+                if self.global_step % self.opt.train.checkpoint_interval == 0:
                     self._checkpoint_step()
 
         self.network.end_feed()
 
         # final test & checkpoint
+        print('running final test & checkpoint...')
         self._test_step()
         self._checkpoint_step()
         self.writer.flush()
@@ -131,9 +132,6 @@ class TrainScript():
         # turn on inference context manager & run the testing
         with torch.inference_mode():
             for batch, data in enumerate(self.test_dataloader):
-                if batch > 10:
-                    break
-
                 if pdar is not None:
                     pdar.set_description(f"testing batch {batch}/{len(self.test_dataloader) - 1}")
                 
