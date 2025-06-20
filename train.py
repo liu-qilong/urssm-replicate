@@ -18,11 +18,11 @@ if __name__ == '__main__':
     opt = config.load_config(args.config)
     print(f'loaded configrations from {args.config}')
 
-    opt.path = os.path.join('experiment', f'{Path(args.config).stem}-{time.strftime("%Y%m%d-%H%M%S")}')
+    opt.path = os.path.join('experiment', f'{opt.exp_name}-{time.strftime("%Y%m%d-%H%M%S")}')
     Path(opt.path).mkdir()
     print(f'created experiment folder {opt.path}')
 
-    shutil.copy(args.config, Path(opt.path) / Path(args.config).name)
+    shutil.copy(args.config, Path(opt.path) / 'config.yaml')
     print(f"copied configurations to {Path(opt.path) / 'config.yaml'}")
     print('-' * 100)
 

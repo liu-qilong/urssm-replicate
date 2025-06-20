@@ -1,4 +1,3 @@
-exp_name: w-lap
 device_select: auto
 network:
     name: URSSM
@@ -62,7 +61,7 @@ train:
             args: {}
         lap_loss:
             name: LaplacianCommutativityLoss
-            weight: 1.0e-3
+            weight: 1.0e-1
             args: {}
         align_loss:
             name: SpatialSpectralAlignmentLoss

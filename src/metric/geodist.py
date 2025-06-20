@@ -114,7 +114,7 @@ class GeodesicDist(BaseMetric):
         # if self.eval() is called, log avg metric
         if not self.training:
             self.metric_avg = self.metric_total / self.sample_total
-            self.script.writer.add_scalar(f'metric/test/{self.name}/dist', self.metric_avg, self.script.global_step)
+            self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
 
             self.script.writer.add_scalar(f'metric/test/{self.name}/auc', self.auc_total / self.sample_total, self.script.global_step)
 
