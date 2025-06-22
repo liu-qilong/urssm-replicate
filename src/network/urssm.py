@@ -1,12 +1,12 @@
 import torch
+from torch import nn
 import torch.nn.functional as F
 
-from src.network import BaseNetwork
 from src.utils.fmap import fmap2pointmap
 from src.infra.registry import NETWORK_REGISTRY, MODULE_REGISTRY
 
 @NETWORK_REGISTRY.register()
-class URSSM(BaseNetwork):
+class URSSM(nn.Module):
     def __init__(self, opt):
         super(URSSM, self).__init__()
         self.opt = opt
@@ -21,7 +21,7 @@ class URSSM(BaseNetwork):
             **self.opt.network.permutation.args
         )
 
-    def forward(self, verts_x, verts_y, faces_x, faces_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y):
+    def cal(self, verts_x, verts_y, faces_x, faces_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y):
         # feature extractor
         feat_x = self.feature_extractor(verts_x, faces_x)
         feat_y = self.feature_extractor(verts_y, faces_y)
@@ -50,7 +50,7 @@ class URSSM(BaseNetwork):
             'Pyx': Pyx,
         }
 
-    def feed(self, data):
+    def forward(self, data):
         verts_x = data['first']['verts']
         verts_y = data['second']['verts']
         faces_x = data['first']['faces']
@@ -60,7 +60,7 @@ class URSSM(BaseNetwork):
         evecs_trans_x = data['first']['evecs_trans']
         evecs_trans_y = data['second']['evecs_trans']
 
-        return self(verts_x, verts_y, faces_x, faces_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y)
+        return self.cal(verts_x, verts_y, faces_x, faces_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y)
 
     def inference(self, verts_x, verts_y, faces_x, faces_y, evals_x, evals_y, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y):
         # feature extractor

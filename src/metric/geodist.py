@@ -74,7 +74,7 @@ class GeodesicDist(BaseMetric):
             )
             pck, auc = self.pck_and_auc(dists)
 
-            dist_sum += dists.sum()
+            dist_sum += dists.mean()
             auc_sum += auc
             pck_arr_sum += pck
 

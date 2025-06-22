@@ -1,5 +1,7 @@
 import os
+import sys
 import time
+import signal
 import argparse
 
 import torch
@@ -8,6 +10,20 @@ import torch.distributed as dist
 
 from src.infra.registry import SCRIPT_REGISTRY
 from src.infra import config
+
+def cleanup():
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+    print("destroyed process group and exited")
+
+def signal_handler(sig, frame):
+    print('interrupt received, cleaning up...')
+    cleanup()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 def run(rank, opt):
     world_size = opt.train.world_size
@@ -18,6 +34,7 @@ def run(rank, opt):
     )
     train_script = SCRIPT_REGISTRY[opt.train.script](opt, rank, world_size)
     train_script.run()
+    cleanup()
 
 if __name__ == '__main__':
     # parse command line arguments

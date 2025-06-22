@@ -44,7 +44,6 @@ class TrainScript():
 
         shutil.copy(self.opt.config, Path(self.opt.path) / 'config.yaml')
         print(f"copied configurations to {Path(self.opt.path) / 'config.yaml'}")
-        print('-' * 100)
 
         self.writer = SummaryWriter(Path(self.opt.path) / 'log')
         (Path(self.opt.path) / 'checkpoint').mkdir()
@@ -123,7 +122,7 @@ class TrainScript():
         self.network.train()
 
         # forward pass & loss calculation
-        infer = self.network.feed(data)
+        infer = self.network(data)
         loss_total = 0.0
 
         for name, loss in self.loss_dict.items():
@@ -158,7 +157,7 @@ class TrainScript():
                 data = to_device(data, self.device)
                 
                 # forward pass
-                infer = self.network.feed(data)
+                infer = self.network(data)
 
                 # loss calculation
                 for name, loss in self.loss_dict.items():
@@ -207,7 +206,7 @@ class DDPTrainScript(TrainScript):
         
         # device select
         self.device = self.rank
-        print(f'launched rank {self.device}...')
+        print(f'[rank {self.rank}] launched')
 
     def run(self):
         if self.rank == 0:
@@ -262,6 +261,7 @@ class DDPTrainScript(TrainScript):
         self.ddp_network = DDP(self.network, device_ids=[self.rank])
 
         # init optimizer
+        self.opt.train.optimizer.args.lr *= self.world_size  # scale learning rate by world size to keep the same effective learning rate per sample
         self.optimizer = OPTIMIZER_REGISTRY[self.opt.train.optimizer.name](**self.opt.train.optimizer.args, params=self.ddp_network.parameters())
 
         if 'load_from' in self.opt.train.optimizer:
@@ -291,19 +291,18 @@ class DDPTrainScript(TrainScript):
         self.total_step = epochs * len(self.train_dataloader)
         batch_num = len(self.train_dataloader)
         self.best_bench = torch.inf
-        self.network.start_feed(self)
 
         for epoch in range(epochs):
             self.train_sampler.set_epoch(epoch)
 
             for batch, data in enumerate(self.train_dataloader):
+                # print progress
                 self.global_step += 1
                 progress_rate = self.global_step / self.total_step
                 elapsed_time = time.time() - start_time
                 eta_time = elapsed_time / progress_rate - elapsed_time if progress_rate > 0 else 0
                 print(f"[rank {self.rank}] epoch {epoch}/{epochs-1} batch {batch}/{batch_num - 1} ({progress_rate * 100:.2f}%) | elapsed: {self.format_time(elapsed_time)} | eta: {self.format_time(eta_time)}")
 
-                data = to_device(data, self.device)
                 self._train_step(data)
 
                 if self.global_step % self.opt.train.test_interval == 0:
@@ -312,19 +311,20 @@ class DDPTrainScript(TrainScript):
                 if self.global_step % self.opt.train.checkpoint_interval == 0:
                     self._checkpoint_step()
 
-        self.network.end_feed()
-
         # final test & checkpoint
         print('running final test & checkpoint...')
         self._test_step()
         self._checkpoint_step()
-        self.writer.flush()
+        
+        if self.rank == 0:
+            self.writer.flush()
 
     def _train_step(self, data):
-        self.network.train()
+        data = to_device(data, self.device)
+        self.ddp_network.train()
 
         # forward pass & loss calculation
-        infer = self.network.feed(data)
+        infer = self.ddp_network(data)
         loss_total = 0.0
 
         for name, loss in self.loss_dict.items():
@@ -348,7 +348,7 @@ class DDPTrainScript(TrainScript):
         batch_num = len(self.test_dataloader)
 
         # turn on eval mode and start feed
-        self.network.eval()
+        self.ddp_network.eval()
 
         for name, loss in self.loss_dict.items():
             loss.eval()
@@ -369,7 +369,7 @@ class DDPTrainScript(TrainScript):
                 data = to_device(data, self.device)
                 
                 # forward pass
-                infer = self.network.feed(data)
+                infer = self.ddp_network(data)
 
                 # loss calculation
                 for name, loss in self.loss_dict.items():
@@ -378,9 +378,6 @@ class DDPTrainScript(TrainScript):
                 # metric calculation
                 for name, metric in self.metric_dict.items():
                     metric.feed(infer, data)
-
-                if batch > 10:
-                    break
 
         # end feed
         for name, loss in self.loss_dict.items():
@@ -393,7 +390,7 @@ class DDPTrainScript(TrainScript):
         # p.s. only in rank 0
         if self.rank == 0:
             def save_best_model():
-                torch.save(self.network.state_dict(), Path(self.opt.path) / 'checkpoint' / f'model-best.pth')
+                torch.save(self.ddp_network.state_dict(), Path(self.opt.path) / 'checkpoint' / f'model-best.pth')
                 torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'checkpoint' / f'optimizer-best.pth')
             
             bench_name = self.opt.train.save_best
@@ -409,7 +406,7 @@ class DDPTrainScript(TrainScript):
     def _checkpoint_step(self):
         if self.rank == 0:
             # save model
-            torch.save(self.network.state_dict(), Path(self.opt.path) / 'checkpoint' / f'model-{self.global_step}.pth')
+            torch.save(self.ddp_network.state_dict(), Path(self.opt.path) / 'checkpoint' / f'model-{self.global_step}.pth')
 
             # save optimizer state
             torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'checkpoint' / f'optimizer-{self.global_step}.pth')
