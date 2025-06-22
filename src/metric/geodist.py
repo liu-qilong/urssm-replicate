@@ -3,6 +3,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import torch
+import torch.distributed as dist
+
 from src.metric import BaseMetric
 from src.infra.registry import METRIC_REGISTRY
 from src.utils.fmap import fmap2pointmap
@@ -77,14 +80,17 @@ class GeodesicDist(BaseMetric):
 
         return dist_sum, auc_sum, pck_arr_sum
 
-    def start_feed(self, script, name):
+    def start_feed(self, script, name, rank=None):
         """Method to start feeding the metric method. Typically called at the beginning of the testing/benchmark epoch
         
         Args:
             script: The traning/benchmark script object
+            name: The name of the metric method
+            rank: The rank of the process (if using distributed training)
         """
         self.script = script
         self.name = name
+        self.rank = rank
 
         # if self.eval() is called, prep for total metric gathering
         if not self.training:
@@ -113,19 +119,47 @@ class GeodesicDist(BaseMetric):
     def end_feed(self):
         # if self.eval() is called, log avg metric
         if not self.training:
-            self.metric_avg = self.metric_total / self.sample_total
-            self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
+            if self.rank is None:
+                # if not using distributed training, simply log the average loss
+                self.metric_avg = self.metric_total / self.sample_total
+                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
 
-            self.script.writer.add_scalar(f'metric/test/{self.name}/auc', self.auc_total / self.sample_total, self.script.global_step)
+                self.script.writer.add_scalar(f'metric/test/{self.name}/auc', self.auc_total / self.sample_total, self.script.global_step)
 
-            fig = plt.figure()
-            plt.plot(
-                np.linspace(0., self.pck_threshold, self.pck_steps),
-                self.pck_arr_total / self.sample_total,
-            )
-            plt.xlabel('geodist')
-            plt.ylabel('ratio')
-            plt.grid(linestyle='--')
-            self.script.writer.add_figure(f'metric/test/{self.name}/pck', fig, self.script.global_step)
+                fig = plt.figure()
+                plt.plot(
+                    np.linspace(0., self.pck_threshold, self.pck_steps),
+                    self.pck_arr_total / self.sample_total,
+                )
+                plt.xlabel('geodist')
+                plt.ylabel('ratio')
+                plt.grid(linestyle='--')
+                self.script.writer.add_figure(f'metric/test/{self.name}/pck', fig, self.script.global_step)
+        
+            else:
+                # if using distributed training, gather the total loss and sample count across all ranks
+                self.metric_total = torch.tensor(self.metric_total).to(device=self.rank)
+                self.auc_total = torch.tensor(self.auc_total).to(device=self.rank)
+                self.pck_arr_total = torch.tensor(self.pck_arr_total).to(device=self.rank)
+                self.sample_total = torch.tensor(self.sample_total).to(device=self.rank)
+                dist.all_reduce(self.metric_total, op=dist.ReduceOp.SUM)
+                dist.all_reduce(self.auc_total, op=dist.ReduceOp.SUM)
+                dist.all_reduce(self.pck_arr_total, op=dist.ReduceOp.SUM)
+                dist.all_reduce(self.sample_total, op=dist.ReduceOp.SUM)
 
+                if self.rank == 0:
+                    # only log in rank 0
+                    self.metric_avg = self.metric_total / self.sample_total
+                    self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
 
+                    self.script.writer.add_scalar(f'metric/test/{self.name}/auc', self.auc_total / self.sample_total, self.script.global_step)
+
+                    fig = plt.figure()
+                    plt.plot(
+                        np.linspace(0., self.pck_threshold, self.pck_steps),
+                        (self.pck_arr_total / self.sample_total).cpu().numpy(),
+                    )
+                    plt.xlabel('geodist')
+                    plt.ylabel('ratio')
+                    plt.grid(linestyle='--')
+                    self.script.writer.add_figure(f'metric/test/{self.name}/pck', fig, self.script.global_step)
