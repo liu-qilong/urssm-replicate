@@ -1,72 +1,92 @@
 # This implementation is adapted from Dongliang Cao, et al. (2024): https://github.com/dongliangcao/unsupervised-learning-of-robust-spectral-shape-matching
 
 import os
-import scipy.io as sio
-import numpy as np
+from pathlib import Path
 from argparse import ArgumentParser
 from glob import glob
-from tqdm import tqdm
 
 import torch
+import open3d as o3d
+import numpy as np
+from tqdm.auto import tqdm
 
-from src.utils.geometry import laplacian_decomposition, get_operators
-from src.utils.shape import read_shape, compute_geodesic_distmat, write_off
+from src.utils.geometry import compute_operators, torch2np, sparse_torch_to_np
+from src.utils.shape import compute_geodesic_distmat
 
 
 if __name__ == '__main__':
     # parse arguments
-    parser = ArgumentParser('Preprocess .off files')
+    parser = ArgumentParser('preprocess .off files')
     parser.add_argument('--data_root', required=True, help='data root contains /off sub-folder.')
     parser.add_argument('--n_eig', type=int, default=128, help='number of eigenvectors/values to compute.')
-    parser.add_argument('--no_eig', action='store_true', help='no laplacian eigen-decomposition')
     parser.add_argument('--no_dist', action='store_true', help='no geodesic matrix.')
-    parser.add_argument('--no_normalize', action='store_true', help='no normalization of face area.')
     args = parser.parse_args()
 
-    # sanity check
-    data_root = args.data_root
-    n_eig = args.n_eig
-    no_eig = args.no_eig
+    # params
+    data_root = Path(args.data_root)
     no_dist = args.no_dist
-    no_normalize = args.no_normalize
-    assert n_eig > 0, f'Invalid n_eig: {n_eig}'
-    assert os.path.isdir(data_root), f'Invalid data root: {data_root}'
+    n_eig = args.n_eig
+    assert n_eig > 0, f'invalid n_eig: {n_eig}'
+    assert os.path.isdir(data_root), f'invalid data root: {data_root}'
 
-    if not no_eig:
-        spectral_dir = os.path.join(data_root, 'diffusion')
-        os.makedirs(spectral_dir, exist_ok=True)
+    spectral_dir = data_root / 'spectral'
+    os.makedirs(spectral_dir, exist_ok=True)
 
-    if not no_dist:
-        dist_dir = os.path.join(data_root, 'dist')
-        os.makedirs(dist_dir, exist_ok=True)
+    dist_dir = data_root / 'dist'
+    os.makedirs(dist_dir, exist_ok=True)
 
-    # read .off files
-    off_files = sorted(glob(os.path.join(data_root, 'off', '*.off')))
+    # preprocessing loop
+    off_files = sorted(glob(str(data_root / 'off' / '*.off')))
     assert len(off_files) != 0
-
+    
     for off_file in tqdm(off_files):
-        verts, faces = read_shape(off_file)
-        filename = os.path.basename(off_file)
+        # load mesh
+        mesh = o3d.io.read_triangle_mesh(off_file)
+        verts, faces = np.asarray(mesh.vertices), np.asarray(mesh.triangles)
 
-        if not no_normalize:
-            # center shape
-            verts -= np.mean(verts, axis=0)
+        # lbo
+        frames, mass_vec, L, evals, evecs, gradX, gradY = compute_operators(
+            torch.from_numpy(verts).float(),
+            torch.from_numpy(faces).long(),
+            k=n_eig,
+        )
 
-            # normalize verts by sqrt face area
-            old_sqrt_area = laplacian_decomposition(verts=verts, faces=faces, k=n_eig)[-1]
-            print(f'Old face sqrt area: {old_sqrt_area:.3f}')
-            verts /= old_sqrt_area
+        # save to npz (w/ verts & faces)
+        frames_np = torch2np(frames).astype(np.float32)
+        mass_np = torch2np(mass_vec).astype(np.float32)
+        evals_np = torch2np(evals).astype(np.float32)
+        evecs_np = torch2np(evecs).astype(np.float32)
+        L_np = sparse_torch_to_np(L).astype(np.float32)
+        gradX_np = sparse_torch_to_np(gradX).astype(np.float32)
+        gradY_np = sparse_torch_to_np(gradY).astype(np.float32)
 
-            # save new verts and faces
-            write_off(off_file, verts, faces)
+        np.savez(
+            spectral_dir / f'{Path(off_file).stem}.npz',
+            verts=verts,
+            faces=faces,
+            k_eig=n_eig,
+            frames=frames_np,
+            mass=mass_np,
+            evals=evals_np,
+            evecs=evecs_np,
+            L_data=L_np.data,
+            L_indices=L_np.indices,
+            L_indptr=L_np.indptr,
+            L_shape=L_np.shape,
+            gradX_data=gradX_np.data,
+            gradX_indices=gradX_np.indices,
+            gradX_indptr=gradX_np.indptr,
+            gradX_shape=gradX_np.shape,
+            gradY_data=gradY_np.data,
+            gradY_indices=gradY_np.indices,
+            gradY_indptr=gradY_np.indptr,
+            gradY_shape=gradY_np.shape,
+        )
 
-        if not no_eig:
-            # recompute laplacian decomposition
-            get_operators(torch.from_numpy(verts).float(), torch.from_numpy(faces).long(),
-                          k=n_eig, cache_dir=spectral_dir)
-
+        # geodist
         if not no_dist:
-            # compute distance matrix
             dist_mat = compute_geodesic_distmat(verts, faces)
-            # save results
-            sio.savemat(os.path.join(dist_dir, filename.replace('.off', '.mat')), {'dist': dist_mat})
+            np.savez(
+                dist_dir / f'{Path(off_file).stem}.npz',
+                dist_mat=dist_mat,
+            )

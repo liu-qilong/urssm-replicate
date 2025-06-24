@@ -2,7 +2,7 @@ exp_name: w-lap
 device_select: auto
 network:
     name: URSSM
-    # load_from: experiment/test-250605/checkpoint/model-11.pth
+    # load_from: experiment/test-20250614-164112/checkpoint/model-6000.pth
     feature_extractor:
         name: DiffusionNet
         args:
@@ -19,7 +19,13 @@ network:
         args:
             tau: 0.07
 train:
-    script: TrainScript
+    script: DDPTrainScript
+    world_size: 2  
+    backend: nccl
+    ddp_port: 29500
+    test_interval: 1000  # per rank
+    checkpoint_interval: 500  # per rank
+    save_best: geodist
     dataset:
         train:
             name: PairFaustDataset
@@ -34,8 +40,7 @@ train:
             dataloader:
                 name: DataLoader
                 args:
-                    batch_size: 1
-                    shuffle: True
+                    batch_size: 1  # per rank
         test:
             name: PairFaustDataset
             args:
@@ -49,8 +54,7 @@ train:
             dataloader:
                 name: DataLoader
                 args:
-                    batch_size: 1
-                    shuffle: True
+                    batch_size: 1  # per rank
     loss:
         bij_loss:
             name: BijectivityLoss
@@ -62,7 +66,7 @@ train:
             args: {}
         lap_loss:
             name: LaplacianCommutativityLoss
-            weight: 1.0e-3
+            weight: 1.0
             args: {}
         align_loss:
             name: SpatialSpectralAlignmentLoss
@@ -75,12 +79,9 @@ train:
     optimizer: 
         name: Adam
         epochs: 1
-        # load_from: experiment/test-250605/checkpoint/optimizer-11.pth
+        # load_from: experiment/test-20250614-164112/checkpoint/optimizer-6000.pth
         args:
             lr: 1.0e-3
-    test_interval: 2000
-    checkpoint_interval: 1000
-    save_best: geodist
 # bench:
 #     script: BenchScript
 #     dataset:

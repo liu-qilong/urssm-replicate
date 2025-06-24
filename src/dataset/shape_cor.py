@@ -24,9 +24,13 @@ def sort_list(l):
 def get_spectral_ops(item, num_evecs, cache_dir=None):
     if not os.path.isdir(cache_dir):
         os.makedirs(cache_dir)
-    _, mass, L, evals, evecs, _, _ = get_operators(item['verts'], item.get('faces'),
-                                                   k=num_evecs,
-                                                   cache_dir=cache_dir)
+        
+    _, mass, L, evals, evecs, _, _ = get_operators(
+        item['verts'], item.get('faces'),
+        k=num_evecs,
+        cache_dir=cache_dir,
+    )
+
     evecs_trans = evecs.T * mass[None]
     item['evecs'] = evecs[:, :num_evecs]
     item['evecs_trans'] = evecs_trans[:num_evecs]
@@ -38,10 +42,12 @@ def get_spectral_ops(item, num_evecs, cache_dir=None):
 
 
 class SingleShapeDataset(Dataset):
-    def __init__(self,
-                 data_root, return_faces=True,
-                 return_evecs=True, num_evecs=200,
-                 return_corr=True, return_dist=False):
+    def __init__(
+            self,
+            data_root, return_faces=True,
+            return_evecs=True, num_evecs=200, return_L=True,
+            return_corr=True, return_dist=False,
+        ):
         """
         Single Shape Dataset
 
@@ -60,6 +66,7 @@ class SingleShapeDataset(Dataset):
         self.data_root = data_root
         self.return_faces = return_faces
         self.return_evecs = return_evecs
+        self.return_L = return_L
         self.return_corr = return_corr
         self.return_dist = return_dist
         self.num_evecs = num_evecs
@@ -109,6 +116,7 @@ class SingleShapeDataset(Dataset):
         # get vertices and faces
         verts, faces = read_shape(off_file)
         item['verts'] = torch.from_numpy(verts).float()
+        
         if self.return_faces:
             item['faces'] = torch.from_numpy(faces).long()
 
@@ -134,13 +142,18 @@ class SingleShapeDataset(Dataset):
 
 @DATASET_REGISTRY.register()
 class SingleFaustDataset(SingleShapeDataset):
-    def __init__(self, data_root,
-                 phase, return_faces=True,
-                 return_evecs=True, num_evecs=200,
-                 return_corr=True, return_dist=False):
-        super(SingleFaustDataset, self).__init__(data_root, return_faces,
-                                                 return_evecs, num_evecs,
-                                                 return_corr, return_dist)
+    def __init__(
+            self,
+            data_root, phase,
+            return_faces=True,
+            return_evecs=True, num_evecs=200, return_L=True,
+            return_corr=True, return_dist=False,
+        ):
+        super(SingleFaustDataset, self).__init__(
+            data_root, return_faces,
+            return_evecs, num_evecs, return_L,
+            return_corr, return_dist,
+        )
         assert phase in ['train', 'test', 'full'], f'Invalid phase {phase}, only "train" or "test" or "full"'
         assert len(self) == 100, f'FAUST dataset should contain 100 human body shapes, but get {len(self)}.'
         if phase == 'train':
@@ -307,13 +320,18 @@ class PairDataset(PairShapeDataset):
 
 @DATASET_REGISTRY.register()
 class PairFaustDataset(PairShapeDataset):
-    def __init__(self, data_root,
-                 phase, return_faces=True,
-                 return_evecs=True, num_evecs=200,
-                 return_corr=True, return_dist=False):
-        dataset = SingleFaustDataset(data_root, phase, return_faces,
-                                     return_evecs, num_evecs,
-                                     return_corr, return_dist)
+    def __init__(
+            self, data_root, phase,
+            return_faces=True,
+            return_evecs=True, num_evecs=200, return_L=True,
+            return_corr=True, return_dist=False,
+        ):
+        dataset = SingleFaustDataset(
+            data_root, phase,
+            return_faces,
+            return_evecs, num_evecs, return_L,
+            return_corr, return_dist,
+        )
         super(PairFaustDataset, self).__init__(dataset)
 
 

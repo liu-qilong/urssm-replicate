@@ -1,4 +1,4 @@
-exp_name: ddp
+exp_name: w-lap
 device_select: auto
 network:
     name: URSSM
@@ -23,6 +23,9 @@ train:
     world_size: 2  
     backend: nccl
     ddp_port: 29500
+    test_interval: 1000  # per rank
+    checkpoint_interval: 500  # per rank
+    save_best: geodist
     dataset:
         train:
             name: PairFaustDataset
@@ -61,6 +64,10 @@ train:
             name: OrthogonalityLoss
             weight: 1.0
             args: {}
+        lap_loss:
+            name: LaplacianCommutativityLoss
+            weight: 1.0
+            args: {}
         align_loss:
             name: SpatialSpectralAlignmentLoss
             weight: 1.0
@@ -75,9 +82,6 @@ train:
         # load_from: experiment/test-20250614-164112/checkpoint/optimizer-6000.pth
         args:
             lr: 1.0e-3
-    test_interval: 1000  # per rank
-    checkpoint_interval: 500  # per rank
-    save_best: geodist
 # bench:
 #     script: BenchScript
 #     dataset:
