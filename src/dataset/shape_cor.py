@@ -308,7 +308,6 @@ class PairShapeDataset(Dataset):
         return len(self.combinations)
 
 
-@DATASET_REGISTRY.register()
 class PairDataset(PairShapeDataset):
     def __init__(self, data_root, return_faces=True,
                  return_evecs=True, num_evecs=200,

@@ -1,6 +1,7 @@
 import os
 from glob import glob
 from pathlib import Path
+from itertools import product
 
 import scipy
 import numpy as np
@@ -103,3 +104,96 @@ class ShapeDatasetFast(Dataset):
 
     def __len__(self):
         return len(self.off_files)
+    
+
+@DATASET_REGISTRY.register()
+class FaustDatasetFast(ShapeDatasetFast):
+    def __init__(
+            self,
+            data_root,
+            phase,
+            return_faces=True,
+            return_L=False,
+            return_mass=True,
+            num_evecs=200,
+            return_evecs=True,
+            return_grad=True,
+            return_corr=False,
+            return_dist=False,
+        ):
+        super(FaustDatasetFast, self).__init__(
+            data_root,
+            return_faces,
+            return_L,
+            return_mass,
+            num_evecs,
+            return_evecs,
+            return_grad,
+            return_corr,
+            return_dist,
+        )
+
+        assert phase in ['train', 'test', 'full'], f'Invalid phase {phase}, only "train" or "test" or "full"'
+        assert len(self) == 100, f'FAUST dataset should contain 100 human body shapes, but get {len(self)}.'
+
+        if phase == 'train':
+            self.off_files = self.off_files[:80]
+
+        elif phase == 'test':
+            self.off_files = self.off_files[80:]
+
+
+class PairShapeDataset(Dataset):
+    def __init__(self, dataset):
+        """
+        Pair Shape Dataset
+
+        Args:
+            dataset (SingleShapeDataset): single shape dataset
+        """
+        assert isinstance(dataset, ShapeDatasetFast), f'invalid input data type of dataset: {type(dataset)}'
+        self.dataset = dataset
+        self.combinations = list(product(range(len(dataset)), repeat=2))
+
+    def __getitem__(self, index):
+        # get index
+        first_index, second_index = self.combinations[index]
+
+        item = dict()
+        item['first'] = self.dataset[first_index]
+        item['second'] = self.dataset[second_index]
+
+        return item
+
+    def __len__(self):
+        return len(self.combinations)
+
+
+@DATASET_REGISTRY.register()
+class PairFaustDatasetFast(PairShapeDataset):
+    def __init__(
+            self,
+            data_root,
+            phase,
+            return_faces=True,
+            return_L=False,
+            return_mass=True,
+            num_evecs=200,
+            return_evecs=True,
+            return_grad=True,
+            return_corr=False,
+            return_dist=False,
+        ):
+        dataset = FaustDatasetFast(
+            data_root,
+            phase,
+            return_faces,
+            return_L,
+            return_mass,
+            num_evecs,
+            return_evecs,
+            return_grad,
+            return_corr,
+            return_dist,
+        )
+        super(PairFaustDatasetFast, self).__init__(dataset)
