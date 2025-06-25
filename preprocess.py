@@ -18,15 +18,15 @@ if __name__ == '__main__':
     # parse arguments
     parser = ArgumentParser('preprocess .off files')
     parser.add_argument('--data_root', required=True, help='data root contains /off sub-folder.')
-    parser.add_argument('--n_eig', type=int, default=128, help='number of eigenvectors/values to compute.')
+    parser.add_argument('--k_eig', type=int, default=128, help='number of eigenvectors/values to compute.')
     parser.add_argument('--no_dist', action='store_true', help='no geodesic matrix.')
     args = parser.parse_args()
 
     # params
     data_root = Path(args.data_root)
     no_dist = args.no_dist
-    n_eig = args.n_eig
-    assert n_eig > 0, f'invalid n_eig: {n_eig}'
+    k_eig = args.k_eig
+    assert k_eig > 0, f'invalid k_eig: {k_eig}'
     assert os.path.isdir(data_root), f'invalid data root: {data_root}'
 
     spectral_dir = data_root / 'spectral'
@@ -48,7 +48,7 @@ if __name__ == '__main__':
         frames, mass_vec, L, evals, evecs, gradX, gradY = compute_operators(
             torch.from_numpy(verts).float(),
             torch.from_numpy(faces).long(),
-            k=n_eig,
+            k=k_eig,
         )
 
         # save to npz (w/ verts & faces)
@@ -64,7 +64,7 @@ if __name__ == '__main__':
             spectral_dir / f'{Path(off_file).stem}.npz',
             verts=verts,
             faces=faces,
-            k_eig=n_eig,
+            k_eig=k_eig,
             frames=frames_np,
             mass=mass_np,
             evals=evals_np,

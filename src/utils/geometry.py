@@ -7,7 +7,6 @@ import hashlib
 import numpy as np
 
 import scipy
-import scipy.spatial
 import scipy.sparse.linalg as sla
 import sklearn.neighbors as neighbors
 
