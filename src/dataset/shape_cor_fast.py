@@ -3,19 +3,12 @@ from glob import glob
 from pathlib import Path
 from itertools import product
 
-import scipy
+import torch
 import numpy as np
 from torch.utils.data import Dataset
 
 from src.infra.registry import DATASET_REGISTRY
-
-def read_sp_mat(npz, prefix):
-    data = npz[prefix + '_data']
-    indices = npz[prefix + '_indices']
-    indptr = npz[prefix + '_indptr']
-    shape = npz[prefix + '_shape']
-    mat = scipy.sparse.csc_matrix((data, indices, indptr), shape=shape)
-    return mat
+from src.utils.tensor import sparse_np_to_torch, read_sp_mat
 
 @DATASET_REGISTRY.register()
 class ShapeDatasetFast(Dataset):
@@ -63,6 +56,8 @@ class ShapeDatasetFast(Dataset):
         # get shape name and load spectral npz
         off_fname = Path(self.off_files[index]).stem
 
+        item['name'] = off_fname
+
         spectral_npz = np.load(
             self.data_root / 'spectral' / f'{off_fname}.npz'
         )
@@ -70,35 +65,38 @@ class ShapeDatasetFast(Dataset):
         assert spectral_npz['k_eig'] >= self.num_evecs, 'not enough eigenvectors in spectral data'
 
         # get vertices and faces
-        item['verts'] = spectral_npz['verts']
-        
+        item['verts'] = torch.from_numpy(spectral_npz['verts'])
+
         if self.return_faces:
-            item['faces'] = spectral_npz['faces']
+            item['faces'] = torch.from_numpy(spectral_npz['faces'])
 
         if self.return_L:
-            item['L'] = read_sp_mat(spectral_npz, 'L')
+            item['L'] = sparse_np_to_torch(read_sp_mat(spectral_npz, 'L'))
             
         if self.return_mass:
-            item['mass'] = spectral_npz['mass']
+            item['mass'] = torch.from_numpy(spectral_npz['mass'])
 
         if self.return_evecs:
-            item['evecs'] = spectral_npz['evecs'][:, :self.num_evecs]
-            item['evals'] = spectral_npz['evals'][:self.num_evecs]
+            item['evecs'] = torch.from_numpy(spectral_npz['evecs'][:, :self.num_evecs])
+            item['evecs_trans'] = torch.from_numpy(
+                spectral_npz['evecs'][:, :self.num_evecs].T * spectral_npz['mass'][None]
+            )  # p.s. this step could take around 1/3 of the __getittem__ runtime. could be optimized by precomputation
+            item['evals'] = torch.from_numpy(spectral_npz['evals'][:self.num_evecs])
 
         if self.return_grad:
-            item['gradX'] = read_sp_mat(spectral_npz, 'gradX')
-            item['gradY'] = read_sp_mat(spectral_npz, 'gradY')
+            item['gradX'] = sparse_np_to_torch(read_sp_mat(spectral_npz, 'gradX'))
+            item['gradY'] = sparse_np_to_torch(read_sp_mat(spectral_npz, 'gradY'))
         
         if self.return_corr:
-            item['corr'] = np.loadtxt(
+            item['corr'] = torch.from_numpy(np.loadtxt(
                 self.data_root / 'corres' / f'{off_fname}.vts',
                 dtype=np.int32,
-            ) - 1  # minus 1 to start from 0
+            ) - 1)  # minus 1 to start from 0
 
         if self.return_dist:
-            item['dist'] = np.load(
+            item['dist'] = torch.from_numpy(np.load(
                 self.data_root / 'dist' / f'{off_fname}.npz'
-            )
+            )['dist_mat'])
 
         return item
 

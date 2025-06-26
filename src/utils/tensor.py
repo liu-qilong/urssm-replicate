@@ -1,8 +1,9 @@
 # This implementation is adapted from Dongliang Cao, et al. (2024): https://github.com/dongliangcao/unsupervised-learning-of-robust-spectral-shape-matching
 
-import numpy as np
-import numbers
+import scipy
 import torch
+import numbers
+import numpy as np
 
 
 def _to_device(x, device):
@@ -68,3 +69,42 @@ def select_points(pts, idx):
     """
     selected_pts = torch.stack([pts[i, idx[i]] for i in range(pts.shape[0])], dim=0)
     return selected_pts
+
+def tensor_memory_footprint(x):
+    if x.is_sparse:
+        values = x._values()
+        indices = x._indices()
+        num_bytes = values.numel() * values.element_size() + indices.numel() * indices.element_size()
+        print(f"Sparse tensor size: {num_bytes / (1024 ** 2):.2f} MB")
+    else:
+        num_bytes = x.numel() * x.element_size()
+        print(f"Dense tensor size: {num_bytes / (1024 ** 2):.2f} MB")
+
+def torch2np(tensor):
+    assert isinstance(tensor, torch.Tensor)
+    return tensor.detach().cpu().numpy()
+
+def read_sp_mat(npz, prefix):
+    data = npz[prefix + '_data']
+    indices = npz[prefix + '_indices']
+    indptr = npz[prefix + '_indptr']
+    shape = npz[prefix + '_shape']
+    mat = scipy.sparse.csc_matrix((data, indices, indptr), shape=shape)
+    return mat
+
+def sparse_np_to_torch(A):
+    Acoo = A.tocoo()
+    values = Acoo.data
+    indices = np.vstack((Acoo.row, Acoo.col))
+    shape = Acoo.shape
+    return torch.sparse_coo_tensor(torch.LongTensor(indices), torch.FloatTensor(values), torch.Size(shape)).coalesce()
+
+
+def sparse_torch_to_np(A):
+    assert len(A.shape) == 2
+
+    indices = torch2np(A.indices())
+    values = torch2np(A.values())
+
+    mat = scipy.sparse.coo_matrix((values, indices), shape=A.shape).tocsc()
+    return mat
