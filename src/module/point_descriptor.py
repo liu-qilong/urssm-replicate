@@ -1,3 +1,6 @@
+import random
+
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -71,7 +74,7 @@ class WKS(nn.Module):
         return feats
 
 @MODULE_REGISTRY.register()
-class WKS_Batch(nn.Module):
+class WKS_vectorized(nn.Module):
     # p.s. very slight computation deviation found from WKS
     # perhaps further check in the future
     def wks(self, evals, evecs, energy_list, sigma, scaled=True):
@@ -120,3 +123,101 @@ class WKS_Batch(nn.Module):
         feat = feat / torch.sqrt(feat_norm.unsqueeze(-1) + 1e-12)
 
         return feat.transpose(1, 2)
+    
+
+@MODULE_REGISTRY.register()
+class XYZ(nn.Module):
+    def euler_angles_to_rotation_matrix(self, theta):
+        R_x = torch.tensor([[1, 0, 0], [0, torch.cos(theta[0]), -torch.sin(theta[0])], [0, torch.sin(theta[0]), torch.cos(theta[0])]])
+        R_y = torch.tensor([[torch.cos(theta[1]), 0, torch.sin(theta[1])], [0, 1, 0], [-torch.sin(theta[1]), 0, torch.cos(theta[1])]])
+        R_z = torch.tensor([[torch.cos(theta[2]), -torch.sin(theta[2]), 0], [torch.sin(theta[2]), torch.cos(theta[2]), 0], [0, 0, 1]])
+
+        matrices = [R_x, R_y, R_z]
+
+        R = torch.mm(matrices[2], torch.mm(matrices[1], matrices[0]))
+        return R
+
+
+    def get_random_rotation(self, x, y, z):
+        thetas = torch.zeros(3, dtype=torch.float)
+        degree_angles = [x, y, z]
+        for axis_ind, deg_angle in enumerate(degree_angles):
+            rand_deg_angle = random.random() * 2 * deg_angle - deg_angle
+            rand_radian_angle = float(rand_deg_angle * np.pi) / 180.0
+            thetas[axis_ind] = rand_radian_angle
+
+        return self.euler_angles_to_rotation_matrix(thetas)
+
+
+    def forward(self, verts, rot_x=0, rot_y=90.0, rot_z=0, std=0.01, noise_clip=0.05, scale_min=0.9, scale_max=1.1):
+        if self.training:
+            # random rotation
+            rotation_matrix = self.get_random_rotation(rot_x, rot_y, rot_z).repeat(verts.shape[0], 1, 1).to(verts.device)
+            verts = torch.bmm(verts, rotation_matrix.transpose(1, 2))
+
+            # random noise
+            noise = std * torch.randn(verts.shape).to(verts.device)
+            noise = noise.clamp(-noise_clip, noise_clip)
+            verts += noise
+
+            # random scaling
+            scales = [scale_min, scale_max]
+            scale = scales[0] + torch.rand((3,)) * (scales[1] - scales[0])
+            verts = verts * scale.to(verts.device)
+
+        return verts
+
+
+@MODULE_REGISTRY.register()
+class XYZ_vectorized(nn.Module):
+    def euler_angles_to_rotation_matrix(self, theta):
+        # theta: shape (3,) — angles in radians
+        # Use torch functions to create rotation matrices that support gradients and device
+        cx, cy, cz = torch.cos(theta)
+        sx, sy, sz = torch.sin(theta)
+
+        R_x = torch.stack([
+            torch.tensor([1., 0., 0.], device=theta.device, dtype=theta.dtype),
+            torch.tensor([0., cx, -sx], device=theta.device, dtype=theta.dtype),
+            torch.tensor([0., sx,  cx], device=theta.device, dtype=theta.dtype)
+        ])
+        R_y = torch.stack([
+            torch.tensor([cy, 0., sy], device=theta.device, dtype=theta.dtype),
+            torch.tensor([0., 1., 0.], device=theta.device, dtype=theta.dtype),
+            torch.tensor([-sy, 0., cy], device=theta.device, dtype=theta.dtype)
+        ])
+        R_z = torch.stack([
+            torch.tensor([cz, -sz, 0.], device=theta.device, dtype=theta.dtype),
+            torch.tensor([sz,  cz, 0.], device=theta.device, dtype=theta.dtype),
+            torch.tensor([0.,   0., 1.], device=theta.device, dtype=theta.dtype)
+        ])
+        # R = Rz @ Ry @ Rx
+        R = R_z @ R_y @ R_x
+        return R
+
+    def get_random_rotation(self, x, y, z, device=None, dtype=None):
+        # each angle is sampled uniformly from [-angle, angle] degrees
+        max_angles = torch.tensor([x, y, z], device=device, dtype=dtype)
+        max_rads = torch.deg2rad(max_angles)
+        rand = torch.rand(3, device=device, dtype=dtype) * 2 - 1  # [-1, 1]
+        thetas = rand * max_rads  # [-max_rad, max_rad] for each axis
+        return self.euler_angles_to_rotation_matrix(thetas)
+
+    def forward(self, verts, rot_x=0, rot_y=90.0, rot_z=0, std=0.01, noise_clip=0.05, scale_min=0.9, scale_max=1.1):
+        if self.training:
+            # random rotation
+            rot = self.get_random_rotation(
+                rot_x, rot_y, rot_z, device=verts.device, dtype=verts.dtype
+            ).unsqueeze(0).repeat(verts.shape[0], 1, 1)
+            verts = torch.bmm(verts, rot.transpose(1, 2))
+
+            # random noise
+            noise = std * torch.randn_like(verts)
+            noise = noise.clamp(-noise_clip, noise_clip)
+            verts += noise
+
+            # random scaling
+            scale = scale_min + torch.rand(3, device=verts.device, dtype=verts.dtype) * (scale_max - scale_min)
+            verts = verts * scale
+
+        return verts
