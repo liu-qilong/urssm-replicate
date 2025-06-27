@@ -84,7 +84,7 @@ class BatchShapePairDataLoader(DataLoader):
                         # eigenvalues don't need padding (K,)
                         collated_sample[shape_key]['evals'] = shape_data['evals']
 
-                    if 'gradX_indices' in shape_data:
+                    if 'gradX' in shape_data:
                         # pad sparse gradient X (V, V) -> (max_V, max_V)
                         collated_sample[shape_key]['gradX'] = torch.sparse_coo_tensor(
                             shape_data['gradX'].indices(),
