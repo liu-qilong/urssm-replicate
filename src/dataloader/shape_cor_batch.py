@@ -36,6 +36,8 @@ class BatchShapePairDataLoader(DataLoader):
                         max_verts = max_verts_dict[shape_key]
                         current_verts = shape_data['verts'].shape[0]
                         collated_sample[shape_key]['num_verts'] = current_verts
+                        collated_sample[shape_key]['verts_mask'] = torch.zeros(max_verts)
+                        collated_sample[shape_key]['verts_mask'][:current_verts] = 1
 
                         # pad vertex coordinates (V, 3) -> (max_V, 3)
                         verts_padded = torch.zeros(max_verts, 3)

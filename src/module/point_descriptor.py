@@ -149,7 +149,7 @@ class XYZ(nn.Module):
         return self.euler_angles_to_rotation_matrix(thetas)
 
 
-    def forward(self, verts, rot_x=0, rot_y=90.0, rot_z=0, std=0.01, noise_clip=0.05, scale_min=0.9, scale_max=1.1):
+    def forward(self, verts, verts_mask, rot_x=0, rot_y=90.0, rot_z=0, std=0.01, noise_clip=0.05, scale_min=0.9, scale_max=1.1):
         if self.training:
             # random rotation
             rotation_matrix = self.get_random_rotation(rot_x, rot_y, rot_z).repeat(verts.shape[0], 1, 1).to(verts.device)
@@ -165,7 +165,7 @@ class XYZ(nn.Module):
             scale = scales[0] + torch.rand((3,)) * (scales[1] - scales[0])
             verts = verts * scale.to(verts.device)
 
-        return verts
+        return verts * verts_mask.unsqueeze(-1)  # (B, V, 3) * (B, V, 1) -> (B, V, 3)
 
 
 @MODULE_REGISTRY.register()
@@ -203,7 +203,7 @@ class XYZ_vectorized(nn.Module):
         thetas = rand * max_rads  # [-max_rad, max_rad] for each axis
         return self.euler_angles_to_rotation_matrix(thetas)
 
-    def forward(self, verts, rot_x=0, rot_y=90.0, rot_z=0, std=0.01, noise_clip=0.05, scale_min=0.9, scale_max=1.1):
+    def forward(self, verts, verts_mask, rot_x=0, rot_y=90.0, rot_z=0, std=0.01, noise_clip=0.05, scale_min=0.9, scale_max=1.1):
         if self.training:
             # random rotation
             rot = self.get_random_rotation(
@@ -220,4 +220,4 @@ class XYZ_vectorized(nn.Module):
             scale = scale_min + torch.rand(3, device=verts.device, dtype=verts.dtype) * (scale_max - scale_min)
             verts = verts * scale
 
-        return verts
+        return verts * verts_mask.unsqueeze(-1)  # (B, V, 3) * (B, V, 1) -> (B, V, 3)
