@@ -10,8 +10,10 @@ class SquaredFrobeniusLoss(BaseLoss):
         super().__init__()
 
     def forward(self, a, b):
+        # a [B, ...] and b [B, ...] should have the same shape
+        batch_num = a.shape[0]
         loss = torch.sum(torch.abs(a - b) ** 2, dim=(-2, -1))
-        return torch.mean(loss)
+        return torch.mean(loss) * batch_num  # scale by batch size to get the summed rather than the averaged loss over all samples
 
 
 @LOSS_REGISTRY.register()
@@ -21,7 +23,10 @@ class BijectivityLoss(BaseLoss):
         self.squared_frobenius = SquaredFrobeniusLoss()
 
     def forward(self, Cxy, Cyx):
-        return self.squared_frobenius(torch.bmm(Cxy, Cyx), torch.eye(Cxy.shape[-1], device=Cxy.device))
+        return self.squared_frobenius(
+            torch.bmm(Cxy, Cyx),
+            torch.eye(Cxy.shape[-1], device=Cxy.device),
+        )
 
     def feed(self, infer, data):
         Cxy = infer['Cxy']
@@ -42,13 +47,16 @@ class OrthogonalityLoss(BaseLoss):
         super(OrthogonalityLoss, self).__init__()
         self.squared_frobenius = SquaredFrobeniusLoss()
 
-    def forward(self, Cxy, Cyx):
-        return self.squared_frobenius(torch.bmm(Cxy.transpose(-2, -1), Cxy), torch.eye(Cxy.shape[-1], device=Cxy.device))
+    def forward(self, Cxy):
+        return self.squared_frobenius(
+            torch.bmm(Cxy.transpose(-2, -1), Cxy),
+            torch.eye(Cxy.shape[-1], device=Cxy.device),
+        )
 
     def feed(self, infer, data):
         Cxy = infer['Cxy']
         Cyx = infer['Cyx']
-        loss_val = self(Cxy, Cyx) + self(Cyx, Cxy)
+        loss_val = self(Cxy) + self(Cyx)
 
         # if self.eval() is called, gather total loss
         if not self.training:
@@ -105,7 +113,7 @@ class SpatialSpectralAlignmentLoss(BaseLoss):
             torch.bmm(Pxy, evecs_y),
         )
 
-        return self.squared_frobenius(Cxy, Cxy_est) + self.squared_frobenius(Cyx, Cyx_est)
+        return (self.squared_frobenius(Cxy, Cxy_est) + self.squared_frobenius(Cyx, Cyx_est))
 
     def feed(self, infer, data):
         Cxy = infer['Cxy']
