@@ -193,7 +193,6 @@ class DiffusionNetBlock(nn.Module):
     def forward(self, x_in, mass, L, evals, evecs, gradX, gradY):
 
         # Manage dimensions
-        B = x_in.shape[0] # batch dimension
         if x_in.shape[-1] != self.C_width:
             raise ValueError(
                 "Tensor has wrong shape = {}. Last dim shape should have number of channels = {}".format(
@@ -293,18 +292,19 @@ class DiffusionNet_vectorized(nn.Module):
         # DiffusionNet blocks
         self.blocks = []
         for i_block in range(self.N_block):
-            block = DiffusionNetBlock(C_width = C_width,
-                                      mlp_hidden_dims = mlp_hidden_dims,
-                                      dropout = dropout,
-                                      diffusion_method = diffusion_method,
-                                      with_gradient_features = with_gradient_features, 
-                                      with_gradient_rotations = with_gradient_rotations)
-
+            block = DiffusionNetBlock(
+                C_width = C_width,
+                mlp_hidden_dims = mlp_hidden_dims,
+                dropout = dropout,
+                diffusion_method = diffusion_method,
+                with_gradient_features = with_gradient_features,
+                with_gradient_rotations = with_gradient_rotations,
+            )
             self.blocks.append(block)
             self.add_module("block_"+str(i_block), self.blocks[-1])
 
     
-    def forward(self, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
+    def forward(self, x_in, verts_mask, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
         """
         A forward pass on the DiffusionNet.
 
@@ -353,7 +353,8 @@ class DiffusionNet_vectorized(nn.Module):
         elif len(x_in.shape) == 3:
             appended_batch_dim = False
         
-        else: raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
+        else:
+            raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
         
         # Apply the first linear layer
         x = self.first_lin(x_in)
@@ -366,7 +367,7 @@ class DiffusionNet_vectorized(nn.Module):
         x = self.last_lin(x)
 
         # Remap output to faces/edges if requested
-        if self.outputs_at == 'vertices': 
+        if self.outputs_at == 'vertices':
             x_out = x
         
         elif self.outputs_at == 'edges': 
@@ -389,6 +390,8 @@ class DiffusionNet_vectorized(nn.Module):
             # (A naive mean is not discretization-invariant; it could be affected by sampling a region more densely)
             x_out = torch.sum(x * mass.unsqueeze(-1), dim=-2) / torch.sum(mass, dim=-1, keepdim=True)
         
+        x_out = x_out
+
         # Apply last nonlinearity if specified
         if self.last_activation != None:
             x_out = self.last_activation(x_out)
@@ -397,4 +400,5 @@ class DiffusionNet_vectorized(nn.Module):
         if appended_batch_dim:
             x_out = x_out.squeeze(0)
 
-        return x_out
+        return x_out * verts_mask.unsqueeze(-1) # mask out padded points (B, V, D) * (B, V, 1)
+        # theoretical analysis & experiments both confirm that although padded points will have values during inference, they won't leaked to the vertics points. therefore, simply masking them out at the end should be enough

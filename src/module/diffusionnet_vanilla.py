@@ -162,11 +162,13 @@ class DiffusionNetBlock(nn.Module):
     Inputs and outputs are defined at vertices
     """
 
-    def __init__(self, C_width, mlp_hidden_dims,
-                 dropout=True, 
-                 diffusion_method='spectral',
-                 with_gradient_features=True, 
-                 with_gradient_rotations=True):
+    def __init__(
+            self, C_width, mlp_hidden_dims,
+            dropout=True, 
+            diffusion_method='spectral',
+            with_gradient_features=True, 
+            with_gradient_rotations=True,
+        ):
         super(DiffusionNetBlock, self).__init__()
 
         # Specified dimensions
@@ -207,12 +209,13 @@ class DiffusionNetBlock(nn.Module):
 
             # Compute gradients
             x_grads = [] # Manually loop over the batch (if there is a batch dimension) since torch.mm() doesn't support batching
+            
             for b in range(B):
                 # gradient after diffusion
                 x_gradX = torch.mm(gradX[b,...], x_diffuse[b,...])
                 x_gradY = torch.mm(gradY[b,...], x_diffuse[b,...])
-
                 x_grads.append(torch.stack((x_gradX, x_gradY), dim=-1))
+
             x_grad = torch.stack(x_grads, dim=0)
 
             # Evaluate gradient features
@@ -223,7 +226,6 @@ class DiffusionNetBlock(nn.Module):
         else:
             # Stack inputs to mlp
             feature_combined = torch.cat((x_in, x_diffuse), dim=-1)
-
         
         # Apply the mlp
         x0_out = self.mlp(feature_combined)
@@ -298,18 +300,19 @@ class DiffusionNet_vanilla(nn.Module):
         # DiffusionNet blocks
         self.blocks = []
         for i_block in range(self.N_block):
-            block = DiffusionNetBlock(C_width = C_width,
-                                      mlp_hidden_dims = mlp_hidden_dims,
-                                      dropout = dropout,
-                                      diffusion_method = diffusion_method,
-                                      with_gradient_features = with_gradient_features, 
-                                      with_gradient_rotations = with_gradient_rotations)
-
+            block = DiffusionNetBlock(
+                C_width = C_width,  
+                mlp_hidden_dims = mlp_hidden_dims,
+                dropout = dropout,
+                diffusion_method = diffusion_method,
+                with_gradient_features = with_gradient_features, 
+                with_gradient_rotations = with_gradient_rotations,
+            )
             self.blocks.append(block)
             self.add_module("block_"+str(i_block), self.blocks[-1])
 
     
-    def forward(self, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
+    def forward(self, x_in, verts_mask, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
         """
         A forward pass on the DiffusionNet.
 
@@ -324,41 +327,22 @@ class DiffusionNet_vanilla(nn.Module):
         Call get_operators() to generate geometric quantities mass/L/evals/evecs/gradX/gradY. Note that depending on the options for the DiffusionNet, not all are strictly necessary.
 
         Parameters:
-            x_in (tensor):      Input features, dimension [N,C] or [B,N,C]
-            mass (tensor):      Mass vector, dimension [N] or [B,N]
-            L (tensor):         Laplace matrix, sparse tensor with dimension [N,N] or [B,N,N]
-            evals (tensor):     Eigenvalues of Laplace matrix, dimension [K_EIG] or [B,K_EIG]
-            evecs (tensor):     Eigenvectors of Laplace matrix, dimension [N,K_EIG] or [B,N,K_EIG]
-            gradX (tensor):     Half of gradient matrix, sparse real tensor with dimension [N,N] or [B,N,N]
-            gradY (tensor):     Half of gradient matrix, sparse real tensor with dimension [N,N] or [B,N,N]
+            x_in (tensor):      Input features, dimension [B,N,C]
+            verts_mask (tensor): Mask for vertices, dimension [B,N]. 1 for valid vertices, 0 for padded vertices. 
+            mass (tensor):      Mass vector, dimension [B,N]
+            L (tensor):         Laplace matrix, sparse tensor with dimension [B,N,N]
+            evals (tensor):     Eigenvalues of Laplace matrix, dimension [B,K_EIG]
+            evecs (tensor):     Eigenvectors of Laplace matrix, dimension or [B,N,K_EIG]
+            gradX (tensor):     Half of gradient matrix, sparse real tensor with dimension [B,N,N]
+            gradY (tensor):     Half of gradient matrix, sparse real tensor with dimension [B,N,N]
 
         Returns:
-            x_out (tensor):    Output with dimension [N,C_out] or [B,N,C_out]
+            x_out (tensor):    Output with dimension [B,N,C_out]
         """
 
-
-        ## Check dimensions, and append batch dimension if not given
+        # Check dimensions, and append batch dimension if not given
         if x_in.shape[-1] != self.C_in: 
             raise ValueError("DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(self.C_in,x_in.shape[-1]))
-        N = x_in.shape[-2]
-        if len(x_in.shape) == 2:
-            appended_batch_dim = True
-
-            # add a batch dim to all inputs
-            x_in = x_in.unsqueeze(0)
-            mass = mass.unsqueeze(0)
-            if L != None: L = L.unsqueeze(0)
-            if evals != None: evals = evals.unsqueeze(0)
-            if evecs != None: evecs = evecs.unsqueeze(0)
-            if gradX != None: gradX = gradX.unsqueeze(0)
-            if gradY != None: gradY = gradY.unsqueeze(0)
-            if edges != None: edges = edges.unsqueeze(0)
-            if faces != None: faces = faces.unsqueeze(0)
-
-        elif len(x_in.shape) == 3:
-            appended_batch_dim = False
-        
-        else: raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
         
         # Apply the first linear layer
         x = self.first_lin(x_in)
@@ -393,13 +377,10 @@ class DiffusionNet_vanilla(nn.Module):
             # Using a weighted mean according to the point mass/area is discretization-invariant. 
             # (A naive mean is not discretization-invariant; it could be affected by sampling a region more densely)
             x_out = torch.sum(x * mass.unsqueeze(-1), dim=-2) / torch.sum(mass, dim=-1, keepdim=True)
-        
+
         # Apply last nonlinearity if specified
         if self.last_activation != None:
             x_out = self.last_activation(x_out)
 
-        # Remove batch dim if we added it
-        if appended_batch_dim:
-            x_out = x_out.squeeze(0)
-
-        return x_out
+        return x_out * verts_mask.unsqueeze(-1) # mask out padded points (B, V, D) * (B, V, 1)
+        # theoretical analysis & experiment both confirm that although padded points will have values during inference, they won't leaked to the vertics points. therefore, simply masking them out at the end should be enough
