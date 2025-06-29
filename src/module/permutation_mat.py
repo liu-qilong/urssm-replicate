@@ -1,4 +1,4 @@
-# This implementation is adapted from Dongliang Cao, et al. (2024): https://github.com/dongliangcao/unsupervised-learning-of-robust-spectral-shape-matching
+# This implementation is adapted from Dongliang Cao, et al. (2024): https://github.com/dongliangcao/unsupervised-learning-of-robust-spectral-shape-matching. New modules & refinements are added
 
 import torch
 import torch.nn as nn
@@ -33,4 +33,4 @@ class SoftmaxPermutationMatrix(nn.Module):
         else:
             ret = alpha
 
-        return ret * verts_mask_x.unsqueeze(-1) * verts_mask_y.unsqueeze(-2)  # mask out padded points (B, V_x, V_y) * (B, V_x, 1) *  * (B, 1, V_y)
+        return ret * verts_mask_x.unsqueeze(-1) * verts_mask_y.unsqueeze(-2)  # mask out padded points [B, V_x, V_y] * [B, V_x, 1] * [B, 1, V_y]

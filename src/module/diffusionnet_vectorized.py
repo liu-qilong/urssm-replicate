@@ -400,5 +400,5 @@ class DiffusionNet_vectorized(nn.Module):
         if appended_batch_dim:
             x_out = x_out.squeeze(0)
 
-        return x_out * verts_mask.unsqueeze(-1) # mask out padded points (B, V, D) * (B, V, 1)
+        return x_out * verts_mask.unsqueeze(-1) # mask out padded points [B, V, D] * [B, V, 1]
         # theoretical analysis & experiments both confirm that although padded points will have values during inference, they won't leaked to the vertics points. therefore, simply masking them out at the end should be enough
