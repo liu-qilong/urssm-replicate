@@ -63,12 +63,3 @@ def read_shape(file, as_cloud=False):
 
     return verts, faces
 
-
-def write_off(file, verts, faces):
-    with open(file, 'w') as f:
-        f.write("OFF\n")
-        f.write(f"{verts.shape[0]} {faces.shape[0]} {0}\n")
-        for x in verts:
-            f.write(f"{' '.join(map(str, x))}\n")
-        for x in faces:
-            f.write(f"{len(x)} {' '.join(map(str, x))}\n")

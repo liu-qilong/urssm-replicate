@@ -8,7 +8,7 @@ import torch.distributed as dist
 
 from src.metric import BaseMetric
 from src.infra.registry import METRIC_REGISTRY
-from src.utils.fmap import fmap2pointmap
+from src.utils.fmap import fmap2pointmap, fmap2pointmap_vectorized
 from src.utils.tensor import to_numpy
 
 
@@ -168,26 +168,6 @@ class GeodesicDist_vectorized(BaseMetric):
         self.pck_threshold = pck_threshold
         self.pck_steps = pck_steps
 
-    def fmap2pointmap(self, Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y):
-        # compute point-to-point map from y to x using the fmap Cxy
-        dist = torch.cdist(
-            evecs_y,  # Phi_y [B, V_y, K]
-            torch.bmm(evecs_x, Cxy.transpose(1, 2)),  # Phi_x @ C_xy^T [B, V_x, K]
-        )  # [B, V_y, V_x]
-
-        # mask out padded points:
-        inf = torch.finfo(dist.dtype).max  # use large finite value to avoid nan propagation
-        dist = dist + (1 - verts_mask_y.float().unsqueeze(-1)) * inf
-        dist = dist + (1 - verts_mask_x.float().unsqueeze(-2)) * inf
-
-        # compute point-to-point map from y to x
-        p2p = torch.argmin(dist, dim=-1) # [B, V_y]
-
-        # set indices for masked y to -1
-        p2p = torch.where(verts_mask_y.bool(), p2p, -1)
-        
-        return p2p.long()
-
     def geodesic_error(self, dist_x, corr_x, corr_y, p2p):
         """
         Batched geodesic error calculation.
@@ -226,7 +206,7 @@ class GeodesicDist_vectorized(BaseMetric):
         return pck, auc
 
     def forward(self, Cxy, evecs_x, evecs_y, dist_x, corr_x, corr_y, verts_mask_x, verts_mask_y):
-        p2p = self.fmap2pointmap(Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y)
+        p2p = fmap2pointmap_vectorized(Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y)
         geo_error = self.geodesic_error(dist_x, corr_x, corr_y, p2p)
         pck, auc = self.pck_and_auc(geo_error)
 
