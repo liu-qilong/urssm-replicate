@@ -96,6 +96,7 @@ class GeodesicDist(BaseMetric):
         # if self.eval() is called, prep for total metric gathering
         if not self.training:
             self.metric_total = 0.0
+            self.metric_avg = 0.0 # used by script to determine best model
             self.auc_total = 0.0
             self.pck_arr_total = np.zeros(self.pck_steps)
             self.sample_total = 0
@@ -121,7 +122,8 @@ class GeodesicDist(BaseMetric):
         if not self.training:
             if self.rank is None:
                 # if not using distributed training, simply log the average loss
-                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_total / self.sample_total, self.script.global_step)
+                self.metric_avg = self.metric_total / self.sample_total
+                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
 
                 self.script.writer.add_scalar(f'metric/test/{self.name}/auc', self.auc_total / self.sample_total, self.script.global_step)
 
@@ -145,7 +147,8 @@ class GeodesicDist(BaseMetric):
 
                 if self.rank == 0:
                     # only log in rank 0
-                    self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_total / self.sample_total, self.script.global_step)
+                    self.metric_avg = self.metric_total / self.sample_total
+                    self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
 
                     self.script.writer.add_scalar(f'metric/test/{self.name}/auc', self.auc_total / self.sample_total, self.script.global_step)
 
@@ -227,7 +230,8 @@ class GeodesicDist_vectorized(BaseMetric):
         # if self.eval() is called, prep for total metric gathering
         if not self.training:
             self.metric_total = 0.0
-            self.pck_total = torch.zeros(self.pck_steps)
+            self.metric_avg = 0.0 # used by optimizer to determine best model
+            self.pck_total = 0.0
             self.auc_total = 0.0
             self.sample_total = 0
 
@@ -254,14 +258,15 @@ class GeodesicDist_vectorized(BaseMetric):
         if not self.training:
             if self.rank is None:
                 # if not using distributed training, simply log the average loss
-                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_total / self.sample_total, self.script.global_step)
+                self.metric_avg = self.metric_total / self.sample_total
+                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
 
                 self.script.writer.add_scalar(f'metric/test/{self.name}/auc', self.auc_total / self.sample_total, self.script.global_step)
 
                 fig = plt.figure()
                 plt.plot(
                     np.linspace(0., self.pck_threshold, self.pck_steps),
-                    self.pck_total / self.sample_total,
+                    (self.pck_total / self.sample_total).cpu().numpy(),
                 )
                 plt.xlabel('geodist')
                 plt.ylabel('ratio')
@@ -273,19 +278,20 @@ class GeodesicDist_vectorized(BaseMetric):
                 self.sample_total = torch.tensor(self.sample_total).to(device=self.rank)
                 dist.all_reduce(self.metric_total, op=dist.ReduceOp.SUM)
                 dist.all_reduce(self.auc_total, op=dist.ReduceOp.SUM)
-                dist.all_reduce(self.pck_arr_total, op=dist.ReduceOp.SUM)
+                dist.all_reduce(self.pck_total, op=dist.ReduceOp.SUM)
                 dist.all_reduce(self.sample_total, op=dist.ReduceOp.SUM)
 
                 if self.rank == 0:
                     # only log in rank 0
-                    self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_total / self.sample_total, self.script.global_step)
+                    self.metric_avg = self.metric_total / self.sample_total
+                    self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
 
                     self.script.writer.add_scalar(f'metric/test/{self.name}/auc', self.auc_total / self.sample_total, self.script.global_step)
 
                     fig = plt.figure()
                     plt.plot(
                         np.linspace(0., self.pck_threshold, self.pck_steps),
-                        (self.pck_arr_total / self.sample_total).cpu().numpy(),
+                        (self.pck_total / self.sample_total).cpu().numpy(),
                     )
                     plt.xlabel('geodist')
                     plt.ylabel('ratio')

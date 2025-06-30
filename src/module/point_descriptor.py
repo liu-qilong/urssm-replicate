@@ -75,8 +75,12 @@ class WKS(nn.Module):
 
 @MODULE_REGISTRY.register()
 class WKS_vectorized(nn.Module):
-    # p.s. very slight computation deviation found from WKS
-    # perhaps further check in the future
+    def __init__(self, n_descr=128, subsample_step=1, n_eig=200):
+        super(WKS_vectorized, self).__init__()
+        self.n_descr = n_descr
+        self.subsample_step = subsample_step
+        self.n_eig = n_eig
+
     def wks(self, evals, evecs, energy_list, sigma, scaled=True):
         # evals: [B, K], evecs: [B, V, K], energy_list: [B, n_descr], sigma: [B]
         coefs = torch.exp(
@@ -108,14 +112,14 @@ class WKS_vectorized(nn.Module):
 
         return self.wks(abs_ev, evecs, energy_list, sigma, scaled=scaled)
 
-    def forward(self, evals, evecs, mass, n_descr=128, subsample_step=1, n_eig=200):
+    def forward(self, evals, evecs, mass):
         # Truncate eigenpairs
-        evals = evals[:, :n_eig]      # [B, K]
-        evecs = evecs[:, :, :n_eig]   # [B, V, K]
+        evals = evals[:, :self.n_eig]      # [B, K]
+        evecs = evecs[:, :, :self.n_eig]   # [B, V, K]
 
-        feat = self.auto_wks(evals, evecs, n_descr, scaled=True)  # [B, n_descr, V]
-        feat = feat[:, :, ::subsample_step]   # [B, n_descr, V_subsampled]
-        mass_sub = mass[:, ::subsample_step]  # [B, V_subsampled]
+        feat = self.auto_wks(evals, evecs, self.n_descr, scaled=True)  # [B, n_descr, V]
+        feat = feat[:, :, ::self.subsample_step]   # [B, n_descr, V_subsampled]
+        mass_sub = mass[:, ::self.subsample_step]  # [B, V_subsampled]
 
         # Normalize
         # [B, n_descr, V_subsampled], [B, V_subsampled]
@@ -123,7 +127,7 @@ class WKS_vectorized(nn.Module):
         feat = feat / torch.sqrt(feat_norm.unsqueeze(-1) + 1e-12)
 
         return feat.transpose(1, 2)
-    
+
 
 @MODULE_REGISTRY.register()
 class XYZ(nn.Module):

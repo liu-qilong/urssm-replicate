@@ -4,6 +4,25 @@ import os
 import os.path as osp
 
 
+def format_time(seconds):
+        seconds = int(seconds)
+        days = seconds // 86400
+        hours = (seconds % 86400) // 3600
+        mins = (seconds % 3600) // 60
+        secs = seconds % 60
+        time_str = ''
+
+        if days > 0:
+            time_str += f"{days}d "
+        if hours > 0 or days > 0:
+            time_str += f"{hours}h "
+        if mins > 0 or hours > 0 or days > 0:
+            time_str += f"{mins}m "
+        time_str += f"{secs}s"
+
+        return time_str.strip()
+
+
 def scandir(dir_path, suffix=None, recursive=False, full_path=False):
     """Scan a directory to find the interested files.
 

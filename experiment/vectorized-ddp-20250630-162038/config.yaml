@@ -1,0 +1,87 @@
+exp_name: vectorized-ddp
+device_select: auto
+network:
+    name: URSSM_vectorized
+    point_descriptor:
+        name: WKS_vectorized
+        args: {}
+    feature_extractor:
+        name: DiffusionNet_vectorized
+        args:
+            C_in: 128
+            C_out: 256
+    fm_solver:
+        name: RegularizedFMNet_vectorized
+        args: {}
+    permute_mat:
+        name: SoftmaxPermutationMatrix
+        args:
+            tau: 0.07
+train:
+    script: DDPTrainScript
+    world_size: 2  
+    backend: nccl
+    ddp_port: 29500
+    test_interval: 150
+    checkpoint_interval: 150
+    save_best: geodist
+    dataset:
+        train:
+            name: PairFaustDatasetFast
+            args:
+                data_root: 'data_/FAUST_r'
+                phase: 'train'
+                return_faces: True
+                return_L: False
+                return_mass: True
+                num_evecs: 200
+                return_evecs: True
+                return_grad: True
+                return_corr: False
+                return_dist: False
+            dataloader:
+                name: BatchShapePairDataLoader
+                args:
+                    batch_size: 8
+                    num_workers: 4  # per rank
+        test:
+            name: PairFaustDatasetFast
+            args:
+                data_root: 'data_/FAUST_r'
+                phase: 'test'
+                return_faces: True
+                return_L: False
+                return_mass: True
+                num_evecs: 200
+                return_evecs: True
+                return_grad: True
+                return_corr: True
+                return_dist: True
+            dataloader:
+                name: BatchShapePairDataLoader
+                args:
+                    batch_size: 8
+                    num_workers: 2  # per rank
+    loss:
+        bij_loss:
+            name: BijectivityLoss
+            weight: 1.0
+            args: {}
+        orth_loss:
+            name: OrthogonalityLoss
+            weight: 1.0
+            args: {}
+        align_loss:
+            name: SpatialSpectralAlignmentLoss
+            weight: 1.0
+            args: {}
+    metric:
+        geodist:
+            name: GeodesicDist_vectorized
+            args: {}
+    optimizer: 
+        name: Adam
+        epochs: 1
+        # load_from: experiment/test-250605/checkpoint/optimizer-11.pth
+        args:
+            lr: 2.0e-3

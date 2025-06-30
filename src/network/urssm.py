@@ -92,3 +92,104 @@ class URSSM(nn.Module):
             'Pyx': Pyx,
             'p2p': p2p,
         }
+
+
+@NETWORK_REGISTRY.register()
+class URSSM_vectorized(nn.Module):
+    def __init__(self, opt):
+        super(URSSM_vectorized, self).__init__()
+        self.opt = opt
+
+        self.point_descriptor = MODULE_REGISTRY[self.opt.network.point_descriptor.name](
+            **self.opt.network.point_descriptor.args
+        )
+        self.feature_extractor = MODULE_REGISTRY[self.opt.network.feature_extractor.name](
+            **self.opt.network.feature_extractor.args
+        )
+        self.fm_solver = MODULE_REGISTRY[self.opt.network.fm_solver.name](
+            **self.opt.network.fm_solver.args
+        )
+        self.permute_mat = MODULE_REGISTRY[self.opt.network.permute_mat.name](
+            **self.opt.network.permute_mat.args
+        )
+
+    def forward(self, data):
+        # point descriptor
+        des_x = self.point_descriptor(
+            evals=data['first']['evals'],
+            evecs=data['first']['evecs'],
+            mass=data['first']['mass'],
+        )
+        des_y = self.point_descriptor(
+            evals=data['second']['evals'],
+            evecs=data['second']['evecs'],
+            mass=data['second']['mass'],
+        )
+
+        # feature extractor
+        feat_x = self.feature_extractor(
+            x_in=des_x,
+            verts_mask=data['first']['verts_mask'],
+            mass=data['first']['mass'],
+            evals=data['first']['evals'],
+            evecs=data['first']['evecs'],
+            gradX=torch.sparse_coo_tensor(
+                data['first']['gradX_indices'],
+                data['first']['gradX_values'],
+                data['first']['gradX_size'],
+            ),
+            gradY=torch.sparse_coo_tensor(
+                data['first']['gradY_indices'],
+                data['first']['gradY_values'],
+                data['first']['gradY_size'],
+            ),
+        )
+        feat_y = self.feature_extractor(
+            x_in=des_y,
+            verts_mask=data['second']['verts_mask'],
+            mass=data['second']['mass'],
+            evals=data['second']['evals'],
+            evecs=data['second']['evecs'],
+            gradX=torch.sparse_coo_tensor(
+                data['second']['gradX_indices'],
+                data['second']['gradX_values'],
+                data['second']['gradX_size'],
+            ),
+            gradY=torch.sparse_coo_tensor(
+                data['second']['gradY_indices'],
+                data['second']['gradY_values'],
+                data['second']['gradY_size'],
+            ),
+        )
+
+        # fm solver
+        Cxy, Cyx = self.fm_solver(
+            feat_x=feat_x,
+            feat_y=feat_y,
+            evals_x=data['first']['evals'],
+            evals_y=data['second']['evals'],
+            evecs_trans_x=data['first']['evecs_trans'],
+            evecs_trans_y=data['second']['evecs_trans'],
+            bidirectional=True,
+        )
+
+        # point-wise correspondence
+        Pxy = self.permute_mat(
+            feat_x=feat_x,
+            feat_y=feat_y,
+            verts_mask_x=data['first']['verts_mask'],
+            verts_mask_y=data['second']['verts_mask'],
+        )
+        Pyx = self.permute_mat(
+            feat_x=feat_y,
+            feat_y=feat_x,
+            verts_mask_x=data['second']['verts_mask'],
+            verts_mask_y=data['first']['verts_mask'],
+        )
+
+        return {
+            'Cxy': Cxy,
+            'Cyx': Cyx,
+            'Pxy': Pxy,
+            'Pyx': Pyx,
+        }

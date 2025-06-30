@@ -1,16 +1,15 @@
 import time
 import shutil
 from pathlib import Path
-from tqdm.auto import tqdm
 
 import torch
-import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
 
 from src.infra.registry import DATASET_REGISTRY, DATALOADER_REGISTRY, NETWORK_REGISTRY, MODULE_REGISTRY, LOSS_REGISTRY, METRIC_REGISTRY, OPTIMIZER_REGISTRY, SCRIPT_REGISTRY
 from src.utils.tensor import to_device
+from src.utils.misc import format_time
 
 
 # --- training scripts ---
@@ -89,28 +88,41 @@ class TrainScript():
         for name, metric in self.opt.train.metric.items():
             self.metric_dict[name] = METRIC_REGISTRY[metric['name']](**metric['args']).to(self.device)
 
+    def print_training_progress(self, epoch, epoch_num, batch, batch_num, step, step_total, start_time):
+        progress_rate = step / step_total
+        elapsed_time = time.time() - start_time
+        step_throughput = (step + 1) / elapsed_time
+        eta_time = elapsed_time / progress_rate - elapsed_time if progress_rate > 0 else 0
+        print(f"training | epoch {epoch}/{epoch_num} batch {batch}/{batch_num - 1} ({progress_rate * 100:.2f}%) | throughput {step_throughput:.2f} batch/s | elapsed {format_time(elapsed_time)} | eta {format_time(eta_time)}")
+
+    def print_testing_progress(self, batch, batch_num, start_time):
+        progress_rate = batch / batch_num
+        elapsed_time = time.time() - start_time
+        batch_throughput = (batch + 1) / elapsed_time
+        eta_time = elapsed_time / progress_rate - elapsed_time if progress_rate > 0 else 0
+        print(f"testing | batch {batch}/{batch_num - 1} ({progress_rate * 100:.2f}%) | throughput: {batch_throughput:.2f} batch/s | elapsed: {format_time(elapsed_time)} | eta: {format_time(eta_time)}")
+
     def train_loop(self):
-        print('-' * 100)
         epochs = self.opt.train.optimizer.epochs
+        start_time = time.time()
         self.global_step = 0
+        self.total_step = epochs * len(self.train_dataloader)
+        batch_num = len(self.train_dataloader)
         self.best_bench = torch.inf
-        self.network.start_feed(self)
 
         for epoch in range(epochs):
-            for batch, data in (pdar := tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader), dynamic_ncols=True)):
-                pdar.set_description(f"epoch {epoch}/{epochs-1}")
+            for batch, data in enumerate(self.train_dataloader):
                 self.global_step += 1
+                self.print_training_progress(epoch, epochs, batch, batch_num, self.global_step, self.total_step, start_time)
 
                 data = to_device(data, self.device)
                 self._train_step(data)
 
                 if self.global_step % self.opt.train.test_interval == 0:
-                    self._test_step(pdar)
+                    self._test_step()
 
                 if self.global_step % self.opt.train.checkpoint_interval == 0:
                     self._checkpoint_step()
-
-        self.network.end_feed()
 
         # final test & checkpoint
         print('running final test & checkpoint...')
@@ -129,14 +141,17 @@ class TrainScript():
             loss.train()
             loss_val = loss.feed(infer, data)
             loss_total += loss_val * self.loss_weight[name]
-            self.writer.add_scalar(f'loss/train/{name}', loss_val.item() / loss_val.item() / self.train_dataloader.batch_size, self.global_step)
+            self.writer.add_scalar(f'loss/train/{name}', loss_val.item() / self.train_dataloader.batch_size, self.global_step)
 
         # loss backward
         self.optimizer.zero_grad()
         loss_total.backward()
         self.optimizer.step()
 
-    def _test_step(self, pdar=None):
+    def _test_step(self):
+        start_time = time.time()
+        batch_num = len(self.test_dataloader)
+
         # turn on eval mode and start feed
         self.network.eval()
 
@@ -151,12 +166,10 @@ class TrainScript():
         # turn on inference context manager & run the testing
         with torch.inference_mode():
             for batch, data in enumerate(self.test_dataloader):
-                if pdar is not None:
-                    pdar.set_description(f"testing batch {batch}/{len(self.test_dataloader) - 1}")
-                
-                data = to_device(data, self.device)
+                self.print_testing_progress(batch, batch_num, start_time)
                 
                 # forward pass
+                data = to_device(data, self.device)
                 infer = self.network(data)
 
                 # loss calculation
@@ -296,12 +309,8 @@ class DDPTrainScript(TrainScript):
             self.train_sampler.set_epoch(epoch)
 
             for batch, data in enumerate(self.train_dataloader):
-                # print progress
                 self.global_step += 1
-                progress_rate = self.global_step / self.total_step
-                elapsed_time = time.time() - start_time
-                eta_time = elapsed_time / progress_rate - elapsed_time if progress_rate > 0 else 0
-                print(f"[rank {self.rank}] epoch {epoch}/{epochs-1} batch {batch}/{batch_num - 1} ({progress_rate * 100:.2f}%) | elapsed: {self.format_time(elapsed_time)} | eta: {self.format_time(eta_time)}")
+                self.print_training_progress(epoch, epochs, batch, batch_num, self.global_step, self.total_step, start_time)
 
                 self._train_step(data)
 
@@ -361,14 +370,10 @@ class DDPTrainScript(TrainScript):
         # turn on inference context manager & run the testing
         with torch.inference_mode():
             for batch, data in enumerate(self.test_dataloader):
-                progress_rate = batch / batch_num
-                elapsed_time = time.time() - start_time
-                eta_time = elapsed_time / progress_rate - elapsed_time if progress_rate > 0 else 0
-                print(f"[rank {self.rank}] testing batch {batch}/{batch_num - 1} ({progress_rate * 100:.2f}%) | elapsed: {self.format_time(elapsed_time)} | eta: {self.format_time(eta_time)}")
-                
-                data = to_device(data, self.device)
+                self.print_testing_progress(batch, batch_num, start_time)
                 
                 # forward pass
+                data = to_device(data, self.device)
                 infer = self.ddp_network(data)
 
                 # loss calculation
@@ -410,21 +415,3 @@ class DDPTrainScript(TrainScript):
 
             # save optimizer state
             torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'checkpoint' / f'optimizer-{self.global_step}.pth')
-
-    def format_time(self, seconds):
-        seconds = int(seconds)
-        days = seconds // 86400
-        hours = (seconds % 86400) // 3600
-        mins = (seconds % 3600) // 60
-        secs = seconds % 60
-        time_str = ''
-
-        if days > 0:
-            time_str += f"{days}d "
-        if hours > 0 or days > 0:
-            time_str += f"{hours}h "
-        if mins > 0 or hours > 0 or days > 0:
-            time_str += f"{mins}m "
-        time_str += f"{secs}s"
-
-        return time_str.strip()
