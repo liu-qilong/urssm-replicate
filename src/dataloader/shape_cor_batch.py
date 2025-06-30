@@ -20,6 +20,15 @@ class BatchShapePairDataLoader(DataLoader):
                 max_faces_dict['first'] = max([sample['first']['faces'].shape[0] for sample in batch])
                 max_faces_dict['second'] = max([sample['second']['faces'].shape[0] for sample in batch])
 
+            if 'corr' in batch[0]['first']:
+                # find maximum number of correspondences
+                # p.s. the i-th line with value v means the i-th vectex from the template shape is corresponding to v-th vertex in the current shape
+                max_corr_num = max([
+                    len(sample[key]['corr'])
+                    for sample in batch
+                    for key in ['first', 'second']
+                ])
+
             # pad each data sample to the unified shape
             collated_batch = []
             
@@ -103,8 +112,8 @@ class BatchShapePairDataLoader(DataLoader):
                         )
                     
                     if 'corr' in shape_data:
-                        # pad correspondence (V,) -> (max_V,)
-                        corr_padded = torch.full((max_verts,), -1, dtype=shape_data['corr'].dtype)
+                        # pad correspondence (V,) -> (max_corr_num,)
+                        corr_padded = torch.full((max_corr_num,), -1, dtype=shape_data['corr'].dtype)
                         corr_padded[:len(shape_data['corr'])] = shape_data['corr']
                         collated_sample[shape_key]['corr'] = corr_padded
 

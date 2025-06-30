@@ -23,7 +23,6 @@ class BaseMetric(nn.Module):
         # if self.eval() is called, prep for total metric gathering
         if not self.training:
             self.metric_total = 0.0
-            self.metric_avg = 0.0
             self.sample_total = 0
 
     def feed(self, infer, data):
@@ -47,8 +46,7 @@ class BaseMetric(nn.Module):
         if not self.training:
             if self.rank is None:
                 # if not using distributed training, simply log the average loss
-                self.metric_avg = self.metric_total / self.sample_total
-                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
+                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_total / self.sample_total, self.script.global_step)
 
             else:
                 # if using distributed training, gather the total loss and sample count across all ranks
@@ -61,6 +59,5 @@ class BaseMetric(nn.Module):
 
                 if self.rank == 0:
                     # only log in rank 0
-                    self.metric_avg = self.metric_total / self.sample_total
-                    self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
+                    self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_total / self.sample_total, self.script.global_step)
 

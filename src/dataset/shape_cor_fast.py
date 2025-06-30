@@ -91,7 +91,7 @@ class ShapeDatasetFast(Dataset):
             item['corr'] = torch.from_numpy(np.loadtxt(
                 self.data_root / 'corres' / f'{off_fname}.vts',
                 dtype=np.int32,
-            ) - 1)  # minus 1 to start from 0
+            ) - 1).long()  # minus 1 to start from 0
 
         if self.return_dist:
             item['dist'] = torch.from_numpy(np.load(
