@@ -26,7 +26,7 @@ train:
         train:
             name: PairFaustDatasetFast
             args:
-                data_root: 'data_/FAUST_r'
+                data_root: 'data/FAUST_r'
                 phase: 'train'
                 return_faces: True
                 return_L: False
@@ -45,7 +45,7 @@ train:
         test:
             name: PairFaustDatasetFast
             args:
-                data_root: 'data_/FAUST_r'
+                data_root: 'data/FAUST_r'
                 phase: 'test'
                 return_faces: True
                 return_L: False

@@ -1,4 +1,4 @@
-exp_name: vectorized
+exp_name: vectorized-ddp
 device_select: auto
 network:
     name: URSSM_vectorized
@@ -18,15 +18,18 @@ network:
         args:
             tau: 0.07
 train:
-    script: TrainScript
-    test_interval: 300
-    checkpoint_interval: 300
+    script: DDPTrainScript
+    world_size: 2  
+    backend: nccl
+    ddp_port: 29500
+    test_interval: 150
+    checkpoint_interval: 150
     save_best: geodist
     dataset:
         train:
             name: PairFaustDatasetFast
             args:
-                data_root: 'data_/FAUST_r'
+                data_root: 'data/FAUST_r'
                 phase: 'train'
                 return_faces: True
                 return_L: False
@@ -40,12 +43,11 @@ train:
                 name: BatchShapePairDataLoader
                 args:
                     batch_size: 8
-                    num_workers: 4
-                    shuffle: True
+                    num_workers: 4  # per rank
         test:
             name: PairFaustDatasetFast
             args:
-                data_root: 'data_/FAUST_r'
+                data_root: 'data/FAUST_r'
                 phase: 'test'
                 return_faces: True
                 return_L: False
@@ -59,8 +61,7 @@ train:
                 name: BatchShapePairDataLoader
                 args:
                     batch_size: 8
-                    num_workers: 4
-                    shuffle: True
+                    num_workers: 2  # per rank
     loss:
         bij_loss:
             name: BijectivityLoss
