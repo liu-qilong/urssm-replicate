@@ -4,15 +4,16 @@ This repository contains a replicated version of [Unsupervised Learning of Robus
 
 - Rewrote dataset & dataloader for ~20x faster loading
   > For the FAUST dataset, data loading throughput is boosted from 2.16 read/s (23 min in total) to 111.98 read/s (58 s in total)
-- Batched computation is supported with zero padding (handled by customized [dataloader](src/dataloader/shape_cor_batch.py))
+- Batched computation is supported by padding all data to unified dimensions, following common practice in NLP (handled by customized [dataloader](src/dataloader/shape_cor_batch.py))
+  > Mathematic equivalence are guaranteed by both theoretical analysis and numerical tests. Each module's output is masked as needed.
 - Fully vectorized modules:
 
-| Modules | Original (batch/s) $^*$ | Vectorized (batch/s) $^*$ |
-| --- | --- | --- |
-| [WKS_vectorized](src/module/point_descriptor.py) | 105.27 | 5000.36 |
-| [DiffusionNet_vectorized](src/module/diffusionnet_vectorized.py) | 30.73 | 50.96 |
-| [RegularizedFMaps_vectorized](src/module/fmap.py) | 2.20 | 73.18 |
-| [GeodesicDist_vectorized](src/metric/geodist.py) | 4.30 | 4841.63 |
+  > | Modules | Original (batch/s) $^*$ | Vectorized (batch/s) $^*$ |
+  > | --- | --- | --- |
+  > | [WKS_vectorized](src/module/point_descriptor.py) | 105.27 | 5000.36 |
+  > | [DiffusionNet_vectorized](src/module/diffusionnet_vectorized.py) | 30.73 | 50.96 |
+  > | [RegularizedFMaps_vectorized](src/module/fmap.py) | 2.20 | 73.18 |
+  > | [GeodesicDist_vectorized](src/metric/geodist.py) | 4.30 | 4841.63 |
 
 $^*$ Batch size is set as 8 with 1 RTX 3090 GPU.
 
