@@ -9,5 +9,5 @@ logs/
 *.pth
 *.csv
 *.pdf
-*.png
+# *.png
 *.tfevents.*

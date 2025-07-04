@@ -14,7 +14,13 @@ This repository contains a replicated version of [Unsupervised Learning of Robus
 | [RegularizedFMaps_vectorized](src/module/fmap.py) | 2.20 | 73.18 |
 | [GeodesicDist_vectorized](src/metric/geodist.py) | 4.30 | 4841.63 |
 
-$^*$ Batch size set as 8 with 1 RTX 3090 GPU.
+$^*$ Batch size is set as 8 with 1 RTX 3090 GPU.
+
+![img](gallery/sample-throughput.png)
+![img](gallery/batch-throughput.png)
+![img](gallery/eta.png)
+
+_P.S. ETA hear obmits the time used for test dataset evaluations._
 
 ## Setup env
 
