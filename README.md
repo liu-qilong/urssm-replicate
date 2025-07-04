@@ -7,7 +7,7 @@ This repository contains a replicated version of [Unsupervised Learning of Robus
 - Batched computation is supported with zero padding (handled by customized [dataloader](src/dataloader/shape_cor_batch.py))
 - Fully vectorized modules:
 
-| Modules | Original (batch/s)$^*$ | Vectorized (batch/s)$^*$ |
+| Modules | Original (batch/s) $^*$ | Vectorized (batch/s) $^*$ |
 | --- | --- | --- |
 | [WKS_vectorized](src/module/point_descriptor.py) | 105.27 | 5000.36 |
 | [DiffusionNet_vectorized](src/module/diffusionnet_vectorized.py) | 30.73 | 50.96 |
