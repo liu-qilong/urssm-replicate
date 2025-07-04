@@ -6,7 +6,7 @@ This repository contains a replicated version of [Unsupervised Learning of Robus
   > For the FAUST dataset, data loading throughput is boosted from 2.16 read/s (23 min in total) to 111.98 read/s (58 s in total)
 - Batched computation is supported by padding all data to unified dimensions, following common practice in NLP (handled by customized [dataloader](src/dataloader/shape_cor_batch.py))
   > Mathematic equivalence are guaranteed by both theoretical analysis and numerical tests. Each module's output is masked as needed.
-- Fully vectorized modules:
+- All modules are fully vectorized. Following is the throughput comparison of some modules:
 
   > | Modules | Original (batch/s) $^*$ | Vectorized (batch/s) $^*$ |
   > | --- | --- | --- |
