@@ -1,5 +1,6 @@
 exp_name: vectorized-ddp
 device_select: auto
+allow_tf32: False
 network:
     name: URSSM_vectorized
     point_descriptor:

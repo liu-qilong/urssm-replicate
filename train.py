@@ -24,6 +24,11 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         torch.cuda.manual_seed(0)
 
+    # tf32
+    if opt.allow_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = True
+        print('tf32 enabled')
+
     # launch training script
     train_script = SCRIPT_REGISTRY[opt.train.script](opt)
     train_script.run()

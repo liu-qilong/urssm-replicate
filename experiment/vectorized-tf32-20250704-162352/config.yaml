@@ -1,6 +1,6 @@
-exp_name: vectorized
+exp_name: vectorized-tf32
 device_select: auto
-allow_tf32: False
+allow_tf32: True
 network:
     name: URSSM_vectorized
     point_descriptor:
