@@ -16,14 +16,16 @@ from src.utils.shape import compute_geodesic_distmat
 
 if __name__ == '__main__':
     # parse arguments
-    parser = ArgumentParser('preprocess .off files')
-    parser.add_argument('--data_root', required=True, help='data root contains /off sub-folder.')
+    parser = ArgumentParser('preprocess mesh dataset')
+    parser.add_argument('--data_root', required=True, help='data root contains a sub-folder named as <mesh_type>/ containing the mesh files.')
+    parser.add_argument('--mesh_type', required=False, default='off', help='mesh file type (e.g. off, ply, obj).')
     parser.add_argument('--k_eig', type=int, default=128, help='number of eigenvectors/values to compute.')
     parser.add_argument('--no_dist', action='store_true', help='no geodesic matrix.')
     args = parser.parse_args()
 
     # params
     data_root = Path(args.data_root)
+    mesh_type = args.mesh_type
     no_dist = args.no_dist
     k_eig = args.k_eig
     assert k_eig > 0, f'invalid k_eig: {k_eig}'
@@ -36,12 +38,12 @@ if __name__ == '__main__':
     os.makedirs(dist_dir, exist_ok=True)
 
     # preprocessing loop
-    off_files = sorted(glob(str(data_root / 'off' / '*.off')))
-    assert len(off_files) != 0
+    mesh_files = sorted(glob(str(data_root / mesh_type / f'*.{mesh_type}')))
+    assert len(mesh_files) != 0
     
-    for off_file in tqdm(off_files):
+    for mesh_file in tqdm(mesh_files):
         # load mesh
-        mesh = o3d.io.read_triangle_mesh(off_file)
+        mesh = o3d.io.read_triangle_mesh(mesh_file)
         verts, faces = np.asarray(mesh.vertices), np.asarray(mesh.triangles)
 
         # lbo
@@ -61,7 +63,7 @@ if __name__ == '__main__':
         gradY_np = sparse_torch_to_np(gradY).astype(np.float32)
 
         np.savez(
-            spectral_dir / f'{Path(off_file).stem}.npz',
+            spectral_dir / f'{Path(mesh_file).stem}.npz',
             verts=verts,
             faces=faces,
             k_eig=k_eig,
@@ -87,6 +89,6 @@ if __name__ == '__main__':
         if not no_dist:
             dist_mat = compute_geodesic_distmat(verts, faces)
             np.savez(
-                dist_dir / f'{Path(off_file).stem}.npz',
+                dist_dir / f'{Path(mesh_file).stem}.npz',
                 dist_mat=dist_mat,
             )

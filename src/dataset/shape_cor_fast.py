@@ -15,20 +15,22 @@ class ShapeDatasetFast(Dataset):
     def __init__(
             self,
             data_root,
-            return_faces=True,
-            return_L=False,
-            return_mass=True,
-            num_evecs=200,
-            return_evecs=True,
-            return_grad=True,
-            return_corr=False,
-            return_dist=False,
+            mesh_type: str = 'off',
+            return_faces: bool =True,
+            return_L: bool = False,
+            return_mass: bool = True,
+            num_evecs: int = 200,
+            return_evecs: bool = True,
+            return_grad: bool = True,
+            return_corr: bool = False,
+            return_dist: bool = False,
         ):
 
         # options
         self.data_root = Path(data_root)
         assert os.path.isdir(data_root), f'invalid data root: {data_root}.'
 
+        self.mesh_type = mesh_type
         self.return_faces = return_faces
         self.return_evecs = return_evecs
         self.return_grad = return_grad
@@ -38,10 +40,10 @@ class ShapeDatasetFast(Dataset):
         self.return_dist = return_dist
         self.num_evecs = num_evecs
 
-        self.off_files = sorted(glob(str(self.data_root / 'off' / '*.off')))
+        self.mesh_files = sorted(glob(str(self.data_root / self.mesh_type / f'*.{self.mesh_type}')))
 
         # sanity checks
-        assert len(self.off_files)
+        assert len(self.mesh_files)
 
         if self.return_dist:
             assert os.path.isdir(self.data_root / 'dist'), f'dist folder not found: {self.data_root / "dist"}'
@@ -54,12 +56,12 @@ class ShapeDatasetFast(Dataset):
         item = {}
 
         # get shape name and load spectral npz
-        off_fname = Path(self.off_files[index]).stem
+        mesh_fname = Path(self.mesh_files[index]).stem
 
-        item['name'] = off_fname
+        item['name'] = mesh_fname
 
         spectral_npz = np.load(
-            self.data_root / 'spectral' / f'{off_fname}.npz'
+            self.data_root / 'spectral' / f'{mesh_fname}.npz'
         )
 
         assert spectral_npz['k_eig'] >= self.num_evecs, 'not enough eigenvectors in spectral data'
@@ -89,19 +91,19 @@ class ShapeDatasetFast(Dataset):
         
         if self.return_corr:
             item['corr'] = torch.from_numpy(np.loadtxt(
-                self.data_root / 'corres' / f'{off_fname}.vts',
+                self.data_root / 'corres' / f'{mesh_fname}.vts',
                 dtype=np.int32,
             ) - 1).long()  # minus 1 to start from 0
 
         if self.return_dist:
             item['dist'] = torch.from_numpy(np.load(
-                self.data_root / 'dist' / f'{off_fname}.npz'
+                self.data_root / 'dist' / f'{mesh_fname}.npz'
             )['dist_mat'])
 
         return item
 
     def __len__(self):
-        return len(self.off_files)
+        return len(self.mesh_files)
     
 
 @DATASET_REGISTRY.register()
@@ -135,10 +137,10 @@ class FaustDatasetFast(ShapeDatasetFast):
         assert len(self) == 100, f'FAUST dataset should contain 100 human body shapes, but get {len(self)}.'
 
         if phase == 'train':
-            self.off_files = self.off_files[:80]
+            self.mesh_files = self.mesh_files[:80]
 
         elif phase == 'test':
-            self.off_files = self.off_files[80:]
+            self.mesh_files = self.mesh_files[80:]
 
 
 class PairShapeDataset(Dataset):
