@@ -112,6 +112,7 @@ class FaustDatasetFast(ShapeDatasetFast):
             self,
             data_root,
             phase,
+            mesh_type='off',
             return_faces=True,
             return_L=False,
             return_mass=True,
@@ -123,6 +124,7 @@ class FaustDatasetFast(ShapeDatasetFast):
         ):
         super(FaustDatasetFast, self).__init__(
             data_root,
+            mesh_type,
             return_faces,
             return_L,
             return_mass,
@@ -175,6 +177,7 @@ class PairFaustDatasetFast(PairShapeDataset):
             self,
             data_root,
             phase,
+            mesh_type='off',
             return_faces=True,
             return_L=False,
             return_mass=True,
@@ -187,6 +190,7 @@ class PairFaustDatasetFast(PairShapeDataset):
         dataset = FaustDatasetFast(
             data_root,
             phase,
+            mesh_type,
             return_faces,
             return_L,
             return_mass,
