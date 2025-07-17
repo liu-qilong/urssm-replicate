@@ -34,8 +34,10 @@ if __name__ == '__main__':
     spectral_dir = data_root / 'spectral'
     os.makedirs(spectral_dir, exist_ok=True)
 
-    dist_dir = data_root / 'dist'
-    os.makedirs(dist_dir, exist_ok=True)
+    # geodist
+    if not no_dist:
+        dist_dir = data_root / 'dist'
+        os.makedirs(dist_dir, exist_ok=True)
 
     # preprocessing loop
     mesh_files = sorted(glob(str(data_root / mesh_type / f'*.{mesh_type}')))

@@ -3,6 +3,7 @@ device_select: auto
 allow_tf32: False
 network:
     name: URSSM_vectorized
+    # load_from: ...
     point_descriptor:
         name: WKS_vectorized
         args: {}
@@ -81,7 +82,7 @@ train:
             args: {}
     optimizer: 
         name: Adam
+        # load_from: ...
         epochs: 1
-        # load_from: experiment/test-250605/checkpoint/optimizer-11.pth
         args:
             lr: 2.0e-3

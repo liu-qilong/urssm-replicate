@@ -18,6 +18,7 @@ network:
         name: SoftmaxPermutationMatrix
         args:
             tau: 0.07
+    # load_from: ...
 train:
     script: DDPTrainScript
     world_size: 2  
@@ -83,6 +84,6 @@ train:
     optimizer: 
         name: Adam
         epochs: 1
-        # load_from: experiment/test-250605/checkpoint/optimizer-11.pth
+        # load_from: ...
         args:
             lr: 2.0e-3
