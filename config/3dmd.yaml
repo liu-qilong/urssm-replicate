@@ -1,0 +1,87 @@
+exp_name: 3dmd
+device_select: auto
+allow_tf32: False
+network:
+    name: URSSM_vectorized
+    # load_from: ...
+    point_descriptor:
+        name: WKS_vectorized
+        args: {}
+    feature_extractor:
+        name: DiffusionNet_vectorized
+        args:
+            C_in: 128
+            C_out: 256
+    fm_solver:
+        name: RegularizedFMNet_vectorized
+        args: {}
+    permute_mat:
+        name: SoftmaxPermutationMatrix
+        args:
+            tau: 0.07
+train:
+    script: TrainScript
+    test_interval: 300
+    checkpoint_interval: 300
+    save_best: geodist
+    dataset:
+        train:
+            name: Pair3dMDDataset
+            args:
+                data_root: '/home/knpob/Documents/Hinton/data/3dMD/S6_nude_jump120_0309_0372'
+                return_faces: True
+                return_L: False
+                return_mass: True
+                num_evecs: 200
+                return_evecs: True
+                return_grad: True
+                return_corr: False
+                return_dist: False
+            dataloader:
+                name: BatchShapePairDataLoader
+                args:
+                    batch_size: 8
+                    num_workers: 4
+                    shuffle: True
+        test:
+            name: PairFaustDatasetFast
+            args:
+                data_root: 'data/FAUST_r'
+                phase: 'test'
+                return_faces: True
+                return_L: False
+                return_mass: True
+                num_evecs: 200
+                return_evecs: True
+                return_grad: True
+                return_corr: True
+                return_dist: True
+            dataloader:
+                name: BatchShapePairDataLoader
+                args:
+                    batch_size: 8
+                    num_workers: 4
+                    shuffle: True
+    loss:
+        bij_loss:
+            name: BijectivityLoss
+            weight: 1.0
+            args: {}
+        orth_loss:
+            name: OrthogonalityLoss
+            weight: 1.0
+            args: {}
+        align_loss:
+            name: SpatialSpectralAlignmentLoss
+            weight: 1.0
+            args: {}
+    metric:
+        geodist:
+            name: GeodesicDist_vectorized
+            args: {}
+    optimizer: 
+        name: Adam
+        # load_from: ...
+        epochs: 1
+        args:
+            lr: 2.0e-3
