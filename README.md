@@ -88,6 +88,29 @@ View train/test loss during or after training:
 tensorboard --logdir experiment/
 ```
 
+_P.S. The trained models' experiment folders are stored under `experiment/`:_
+
+- `experiment/<experiment-name>/`: the experiment folder
+- `experiment/<experiment-name>/config.yaml`: a copy of the configration
+- `experiment/<experiment-name>/checkpoint/`: model weights and optimizer checkpoints
+- `experiment/<experiment-name>/log/`: training logs
+
+## Benchmarking
+
+To benchmark a trained model, go to its experiment folder and edit the `config.yaml` file to set the `benchmark` option ([example](config/vec.yaml)). Then run:
+
+```bash
+python bench.py --folder <experiment-folder>
+```
+
+It will create `experiment/<experiment-name>/bench/` folder to store the benchmark results. To view the results:
+
+```bash
+tensorboard --logdir experiment/
+```
+
+_P.S. Some metrics may not log results to `tensorboard`. Instead, it may output files to `bench/` directly._
+
 ## Remark
 
 `notebook/prototype` folder contains temporal prototype code during development. It might not be able to run afterwards. Don't use them as a reference.
