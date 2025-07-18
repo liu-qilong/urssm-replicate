@@ -121,7 +121,7 @@ benchmark:
             name: SpatialSpectralAlignmentLoss
             weight: 1.0
             args: {}
-        # {}
+        {}
     metric:
         geodist:
             name: GeodesicDist_vectorized
@@ -129,3 +129,13 @@ benchmark:
         # throughput:
         #     name: Throughput
         #     args: {}
+        texture_transfer:
+            name: TextureTransferSample
+            args:
+                batch_interval: 25
+                texture_file: 'gallery/texture-symbol-grid.png'
+                shape_disp: [1, 0, 0]
+                cammera_position: 'xy'
+                window_size: [1024, 1024]
+                output_folder: 'bench/texture-transfer-samples'
+                keep_mesh: False

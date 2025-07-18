@@ -60,7 +60,7 @@ def fmap2pointmap_vectorized(Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y):
         verts_mask_y (torch.Tensor): mask for vertices in shape y. Shape [B, V_y] with valid points as 1 and padded points as 0.
 
     Returns:
-        p2p (torch.Tensor): point-to-point map (shape y -> shape x). Shape [B, V_y]
+        p2p (torch.Tensor): point-to-point map (shape y -> shape x). Shape [B, V_y]. _P.S. This function works for padded batched data, and the padded points will also have value in the returned `p2p` map. You should carefully masked them out, otherwise undefined behavior may be introduced._
     """
     # compute point-to-point map from y to x using the fmap Cxy
     dist = torch.cdist(
@@ -75,9 +75,6 @@ def fmap2pointmap_vectorized(Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y):
 
     # compute point-to-point map from y to x
     p2p = torch.argmin(dist, dim=-1) # [B, V_y]
-
-    # set indices for masked y to -1
-    p2p = torch.where(verts_mask_y.bool(), p2p, -1)
     
     return p2p.long()
 

@@ -13,6 +13,11 @@ class Throughput(BaseMetric):
     2. Comment out other metrics and set `opt.benchmark.loss: {}`.
     3. Add this metric for another `bench.py` run. Throughput results will be added and won't affect the results of other metrics.
     """
+    def forward(self, infer, data):
+        """Do nothing
+        """
+        return torch.tensor(0.0).to(device=self.script.device)
+    
     def start_feed(self, script, name, rank=None):
         """Log start time
         
@@ -24,18 +29,6 @@ class Throughput(BaseMetric):
         super().start_feed(script, name, rank)
         assert len(self.script.opt.benchmark.loss) + len(self.script.opt.benchmark.metric) == 1, "Throughput metric should be used alone, please comment out other metrics in the config file. You can: 1. First benchmark other metrics in one `bench.py` run 2. Comment out other metrics and set `opt.benchmark.loss: {}`. 3. Add this metric for another `bench.py` run. Throughput results will be added and won't affect the results of other metrics."
         self.start_time = time.time()
-
-    def feed(self, infer, data):
-        """Do nothing. Only add up sample numbers.
-        """
-        metric_val = torch.tensor(0.0).to(device=self.script.device)
-        
-        # if self.eval() is called, gather total metric
-        if not self.training:
-            self.metric_total += metric_val
-            self.sample_total += len(data)
-        
-        return metric_val
 
     def end_feed(self):
         """Method to end feeding the metric method. Typically called at the end of the testing/benchmark epoch. Metric values of the whole test epoch could be averaged and logged in this method.
