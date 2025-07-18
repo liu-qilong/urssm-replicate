@@ -448,17 +448,23 @@ class BenchScript:
         print(f'load testing dataset with {len(self.test_dataset)} samples')
 
     def bench_prep(self):
-        # init/load model
+        # init model
         self.network = NETWORK_REGISTRY[self.opt.network.name](self.opt).to(self.device)
         print(f'initialized model {self.opt.network.name}')
 
+        # load model weights
         if 'network_weight' in self.opt.benchmark:
             pth_path = self.opt.benchmark.network_weight
 
         else:
             pth_path = Path(self.opt.path) / 'checkpoint' / 'model-best.pth'
 
-        self.network.load_state_dict(torch.load(pth_path, map_location=self.device))
+        state_dict = torch.load(pth_path, map_location=self.device)
+        if any(k.startswith('module.') for k in state_dict.keys()):
+            # handle DDP 'module.' prefix
+            state_dict = {k.replace('module.', '', 1): v for k, v in state_dict.items()}
+
+        self.network.load_state_dict(state_dict)
         print(f'loaded model weights from {pth_path}')
 
         # init loss dict

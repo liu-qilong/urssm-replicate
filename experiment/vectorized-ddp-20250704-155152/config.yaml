@@ -86,3 +86,42 @@ train:
         # load_from: experiment/test-250605/checkpoint/optimizer-11.pth
         args:
             lr: 2.0e-3
+benchmark:
+    script: BenchScript
+    # network_weight: ...
+    dataset:
+        name: PairFaustDatasetFast
+        args:
+            data_root: 'data/FAUST_r'
+            phase: 'test'
+            return_faces: True
+            return_L: False
+            return_mass: True
+            num_evecs: 200
+            return_evecs: True
+            return_grad: True
+            return_corr: True
+            return_dist: True
+        dataloader:
+            name: BatchShapePairDataLoader
+            args:
+                batch_size: 8
+                num_workers: 4
+                shuffle: True
+    loss:
+        bij_loss:
+            name: BijectivityLoss
+            weight: 1.0
+            args: {}
+        orth_loss:
+            name: OrthogonalityLoss
+            weight: 1.0
+            args: {}
+        align_loss:
+            name: SpatialSpectralAlignmentLoss
+            weight: 1.0
+            args: {}
+    metric:
+        geodist:
+            name: GeodesicDist_vectorized
+            args: {}
