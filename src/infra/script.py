@@ -415,3 +415,109 @@ class DDPTrainScript(TrainScript):
 
             # save optimizer state
             torch.save(self.optimizer.state_dict(), Path(self.opt.path) / 'checkpoint' / f'optimizer-{self.global_step}.pth')
+
+
+# --- benchmark scripts ---
+@SCRIPT_REGISTRY.register()
+class BenchScript:
+    def __init__(self, opt):
+        self.opt = opt
+        
+        # device select
+        if self.opt.device_select == 'auto':
+            if torch.cuda.is_available():
+                self.device = 'cuda'
+            elif torch.backends.mps.is_available():
+                self.device = 'mps'
+            else:
+                self.device = 'cpu'
+        else:
+            self.device = self.opt.device_select
+
+        print(f'running on {self.device}...')
+
+    def run(self):
+        self.writer = SummaryWriter(Path(self.opt.path) / 'bench')
+        self.load_data()
+        self.bench_prep()
+        self.bench_loop()
+
+    def load_data(self):
+        self.test_dataset = DATASET_REGISTRY[self.opt.benchmark.dataset.name](**self.opt.benchmark.dataset.args)
+        self.test_dataloader = DATALOADER_REGISTRY[self.opt.benchmark.dataset.dataloader.name](self.test_dataset, **self.opt.benchmark.dataset.dataloader.args)
+        print(f'load testing dataset with {len(self.test_dataset)} samples')
+
+    def bench_prep(self):
+        # init/load model
+        self.network = NETWORK_REGISTRY[self.opt.network.name](self.opt).to(self.device)
+        print(f'initialized model {self.opt.network.name}')
+
+        if 'network_weight' in self.opt.benchmark:
+            pth_path = self.opt.benchmark.network_weight
+
+        else:
+            pth_path = Path(self.opt.path) / 'checkpoint' / 'model-best.pth'
+
+        self.network.load_state_dict(torch.load(pth_path, map_location=self.device))
+        print(f'loaded model weights from {pth_path}')
+
+        # init loss dict
+        self.loss_dict = {}
+        self.loss_weight = {}
+
+        for name, loss in self.opt.benchmark.loss.items():
+            self.loss_dict[name] = LOSS_REGISTRY[loss['name']](**loss['args']).to(self.device)
+            self.loss_weight[name] = loss['weight']
+        
+        # init metric dict
+        self.metric_dict = {}
+
+        for name, metric in self.opt.benchmark.metric.items():
+            self.metric_dict[name] = METRIC_REGISTRY[metric['name']](**metric['args']).to(self.device)
+
+    def print_benchmarking_progress(self, batch, batch_num, start_time):
+        progress_rate = batch / batch_num
+        elapsed_time = time.time() - start_time
+        batch_throughput = (batch + 1) / elapsed_time
+        eta_time = elapsed_time / progress_rate - elapsed_time if progress_rate > 0 else 0
+        print(f"benchmarking | batch {batch}/{batch_num - 1} ({progress_rate * 100:.2f}%) | throughput: {batch_throughput:.2f} batch/s | elapsed: {format_time(elapsed_time)} | eta: {format_time(eta_time)}")
+
+    def bench_loop(self):
+        self.global_step = 0
+        batch_num = len(self.test_dataloader)
+        start_time = time.time()
+
+        # turn on eval mode and start feed
+        self.network.eval()
+
+        for name, loss in self.loss_dict.items():
+            loss.eval()
+            loss.start_feed(self, name)
+
+        for name, metric in self.metric_dict.items():
+            metric.eval()
+            metric.start_feed(self, name)
+
+        # turn on inference context manager & run the testing
+        with torch.inference_mode():
+            for batch, data in enumerate(self.test_dataloader):
+                self.print_benchmarking_progress(batch, batch_num, start_time)
+                
+                # forward pass
+                data = to_device(data, self.device)
+                infer = self.network(data)
+
+                # loss calculation
+                for name, loss in self.loss_dict.items():
+                    loss.feed(infer, data)
+
+                # metric calculation
+                for name, metric in self.metric_dict.items():
+                    metric.feed(infer, data)
+
+        # end feed
+        for name, loss in self.loss_dict.items():
+            loss.end_feed()
+
+        for name, metric in self.metric_dict.items():
+            metric.end_feed()
