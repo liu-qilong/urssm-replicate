@@ -26,7 +26,7 @@ class LearnedTimeDiffusion(nn.Module):
     """
 
     def __init__(self, C_inout, method='spectral'):
-        super(LearnedTimeDiffusion, self).__init__()
+        super().__init__()
         self.C_inout = C_inout
         self.diffusion_time = nn.Parameter(torch.Tensor(C_inout))  # (C)
         self.method = method # one of ['spectral', 'implicit_dense']
@@ -94,7 +94,7 @@ class SpatialGradientFeatures(nn.Module):
     """
 
     def __init__(self, C_inout, with_gradient_rotations=True):
-        super(SpatialGradientFeatures, self).__init__()
+        super().__init__()
 
         self.C_inout = C_inout
         self.with_gradient_rotations = with_gradient_rotations
@@ -128,7 +128,7 @@ class MiniMLP(nn.Sequential):
     A simple MLP with configurable hidden layer sizes.
     '''
     def __init__(self, layer_sizes, dropout=False, activation=nn.ReLU, name="miniMLP"):
-        super(MiniMLP, self).__init__()
+        super().__init__()
 
         for i in range(len(layer_sizes) - 1):
             is_last = (i + 2 == len(layer_sizes))
@@ -169,7 +169,7 @@ class DiffusionNetBlock(nn.Module):
             with_gradient_features=True, 
             with_gradient_rotations=True,
         ):
-        super(DiffusionNetBlock, self).__init__()
+        super().__init__()
 
         # Specified dimensions
         self.C_width = C_width
@@ -262,7 +262,7 @@ class DiffusionNet_vanilla(nn.Module):
             with_gradient_rotations (bool): if True, use gradient also learn a rotation of each gradient. Set to True if your surface has consistently oriented normals, and False otherwise (default: True)
         """
 
-        super(DiffusionNet_vanilla, self).__init__()
+        super().__init__()
 
         ## Store parameters
 

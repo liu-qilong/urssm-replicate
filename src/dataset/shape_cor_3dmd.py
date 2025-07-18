@@ -19,7 +19,7 @@ class Single3dMDDatasetFast(ShapeDatasetFast):
         # groudntruth shapr cor unavailable
         assert not return_corr
 
-        super(Single3dMDDatasetFast, self).__init__(
+        super().__init__(
             data_root,
             mesh_type,
             return_faces,
@@ -60,4 +60,4 @@ class Pair3dMDDataset(PairShapeDataset):
             return_corr,
             return_dist,
         )
-        super(Pair3dMDDataset, self).__init__(dataset)
+        super().__init__(dataset)

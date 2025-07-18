@@ -10,7 +10,7 @@ from src.infra.registry import MODULE_REGISTRY
 @MODULE_REGISTRY.register()
 class SoftmaxPermutationMatrix(nn.Module):
     def __init__(self, normalise_dim=-1, tau=0.2, hard=False):
-        super(SoftmaxPermutationMatrix, self).__init__()
+        super().__init__()
         self.dim = normalise_dim
         self.tau = tau
         self.hard = hard

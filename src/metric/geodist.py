@@ -16,7 +16,7 @@ from src.utils.tensor import to_numpy
 class GeodesicDist(BaseMetric):
     """"The original implementation of geodesic error. Doesn't support padded batched computation, as it doesn't consider the vertices mask. It's also much slower than the vectorized version."""
     def __init__(self, pck_threshold=0.10, pck_steps=40):
-        super(GeodesicDist, self).__init__()
+        super().__init__()
         self.pck_threshold = pck_threshold
         self.pck_steps = pck_steps
 
@@ -167,7 +167,7 @@ class GeodesicDist(BaseMetric):
 class GeodesicDist_vectorized(BaseMetric):
     """Vectorized implementation of geodesic error. Supports padded batched computation and is much faster than the original implementation."""
     def __init__(self, pck_threshold=0.10, pck_steps=40):
-        super(GeodesicDist_vectorized, self).__init__()
+        super().__init__()
         self.pck_threshold = pck_threshold
         self.pck_steps = pck_steps
 

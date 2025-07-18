@@ -149,7 +149,7 @@ class SingleFaustDataset(SingleShapeDataset):
             return_evecs=True, num_evecs=200, return_L=True,
             return_corr=True, return_dist=False,
         ):
-        super(SingleFaustDataset, self).__init__(
+        super().__init__(
             data_root, return_faces,
             return_evecs, num_evecs, return_L,
             return_corr, return_dist,
@@ -180,7 +180,7 @@ class SingleScapeDataset(SingleShapeDataset):
                  phase, return_faces=True,
                  return_evecs=True, num_evecs=200,
                  return_corr=True, return_dist=False):
-        super(SingleScapeDataset, self).__init__(data_root, return_faces,
+        super().__init__(data_root, return_faces,
                                                  return_evecs, num_evecs,
                                                  return_corr, return_dist)
         assert phase in ['train', 'test', 'full'], f'Invalid phase {phase}, only "train" or "test" or "full"'
@@ -209,7 +209,7 @@ class SingleShrec19Dataset(SingleShapeDataset):
                  return_faces=True,
                  return_evecs=True, num_evecs=200,
                  return_dist=False):
-        super(SingleShrec19Dataset, self).__init__(data_root, return_faces, return_evecs, num_evecs, False, return_dist)
+        super().__init__(data_root, return_faces, return_evecs, num_evecs, False, return_dist)
 
 
 @DATASET_REGISTRY.register()
@@ -220,7 +220,7 @@ class SingleSmalDataset(SingleShapeDataset):
                  return_corr=True, return_dist=False):
         self.phase = phase
         self.category = category
-        super(SingleSmalDataset, self).__init__(data_root, return_faces, return_evecs, num_evecs,
+        super().__init__(data_root, return_faces, return_evecs, num_evecs,
                                                 return_corr, return_dist)
 
     def _init_data(self):
@@ -247,7 +247,7 @@ class SingleDT4DDataset(SingleShapeDataset):
                  return_corr=True, return_dist=False):
         self.phase = phase
         self.ignored_categories = ['pumpkinhulk']
-        super(SingleDT4DDataset, self).__init__(data_root, return_faces,
+        super().__init__(data_root, return_faces,
                                                 return_evecs, num_evecs,
                                                 return_corr, return_dist)
 
@@ -269,7 +269,7 @@ class SingleShrec20Dataset(SingleShapeDataset):
     def __init__(self, data_root,
                  return_faces=True,
                  return_evecs=True, num_evecs=200):
-        super(SingleShrec20Dataset, self).__init__(data_root, return_faces,
+        super().__init__(data_root, return_faces,
                                                    return_evecs, num_evecs, False, False)
 
 
@@ -278,7 +278,7 @@ class SingleTopKidsDataset(SingleShapeDataset):
     def __init__(self, data_root,
                  return_faces=True,
                  return_evecs=True, num_evecs=200, return_dist=False):
-        super(SingleTopKidsDataset, self).__init__(data_root, return_faces,
+        super().__init__(data_root, return_faces,
                                                    return_evecs, num_evecs, False, return_dist)
 
 
@@ -314,7 +314,7 @@ class PairDataset(PairShapeDataset):
                  return_corr=True, return_dist=False):
         dataset = SingleShapeDataset(data_root, return_faces, return_evecs, num_evecs,
                                      return_corr, return_dist)
-        super(PairDataset, self).__init__(dataset)
+        super().__init__(dataset)
 
 
 @DATASET_REGISTRY.register()
@@ -331,7 +331,7 @@ class PairFaustDataset(PairShapeDataset):
             return_evecs, num_evecs, return_L,
             return_corr, return_dist,
         )
-        super(PairFaustDataset, self).__init__(dataset)
+        super().__init__(dataset)
 
 
 @DATASET_REGISTRY.register()
@@ -343,7 +343,7 @@ class PairScapeDataset(PairShapeDataset):
         dataset = SingleScapeDataset(data_root, phase, return_faces,
                                      return_evecs, num_evecs,
                                      return_corr, return_dist)
-        super(PairScapeDataset, self).__init__(dataset)
+        super().__init__(dataset)
 
 
 @DATASET_REGISTRY.register()
@@ -399,7 +399,7 @@ class PairSmalDataset(PairShapeDataset):
         dataset = SingleSmalDataset(data_root, phase, category, return_faces,
                                     return_evecs, num_evecs,
                                     return_corr, return_dist)
-        super(PairSmalDataset, self).__init__(dataset=dataset)
+        super().__init__(dataset=dataset)
 
 
 @DATASET_REGISTRY.register()
@@ -411,7 +411,7 @@ class PairDT4DDataset(PairShapeDataset):
         dataset = SingleDT4DDataset(data_root, phase, return_faces,
                                     return_evecs, num_evecs,
                                     return_corr, return_dist)
-        super(PairDT4DDataset, self).__init__(dataset=dataset)
+        super().__init__(dataset=dataset)
         self.inter_class = inter_class
         self.combinations = []
         if self.inter_class:
@@ -455,7 +455,7 @@ class PairShrec20Dataset(PairShapeDataset):
                  return_faces=True,
                  return_evecs=True, num_evecs=120):
         dataset = SingleShrec20Dataset(data_root, return_faces, return_evecs, num_evecs)
-        super(PairShrec20Dataset, self).__init__(dataset=dataset)
+        super().__init__(dataset=dataset)
 
 
 @DATASET_REGISTRY.register()

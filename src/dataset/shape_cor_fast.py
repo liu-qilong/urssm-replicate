@@ -122,7 +122,7 @@ class FaustDatasetFast(ShapeDatasetFast):
             return_corr=False,
             return_dist=False,
         ):
-        super(FaustDatasetFast, self).__init__(
+        super().__init__(
             data_root,
             mesh_type,
             return_faces,
@@ -200,4 +200,4 @@ class PairFaustDatasetFast(PairShapeDataset):
             return_corr,
             return_dist,
         )
-        super(PairFaustDatasetFast, self).__init__(dataset)
+        super().__init__(dataset)

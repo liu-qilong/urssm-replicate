@@ -76,7 +76,7 @@ class WKS(nn.Module):
 @MODULE_REGISTRY.register()
 class WKS_vectorized(nn.Module):
     def __init__(self, n_descr=128, subsample_step=1, n_eig=200):
-        super(WKS_vectorized, self).__init__()
+        super().__init__()
         self.n_descr = n_descr
         self.subsample_step = subsample_step
         self.n_eig = n_eig

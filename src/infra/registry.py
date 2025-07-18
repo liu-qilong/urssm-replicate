@@ -1,7 +1,7 @@
 class Registry(dict):
     def __init__(self, name, *args, **kwargs):
         self.name = name
-        super(Registry, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def add(self, name, obj):
         assert (name not in self), f"An object named '{name}' was already registered in {self.name} registry"

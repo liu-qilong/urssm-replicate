@@ -10,7 +10,7 @@ from src.infra.registry import MODULE_REGISTRY
 class RegularizedFMNet(nn.Module):
     """Compute the functional map matrix representation in DPFM"""
     def __init__(self, lmbda=100, resolvant_gamma=0.5):
-        super(RegularizedFMNet, self).__init__()
+        super().__init__()
         self.lmbda = lmbda
         self.resolvant_gamma = resolvant_gamma
 
@@ -85,7 +85,7 @@ class RegularizedFMNet(nn.Module):
 class RegularizedFMNet_vectorized(nn.Module):
     """Compute the functional map matrix representation in DPFM"""
     def __init__(self, lmbda=100, resolvant_gamma=0.5):
-        super(RegularizedFMNet_vectorized, self).__init__()
+        super().__init__()
         self.lmbda = lmbda
         self.resolvant_gamma = resolvant_gamma
 

@@ -20,7 +20,7 @@ class LearnedTimeDiffusion(nn.Module):
             in_channels (int): number of input channels.
             method (str, optional): method to perform time diffusion. Default 'spectral'.
         """
-        super(LearnedTimeDiffusion, self).__init__()
+        super().__init__()
         assert method in ['spectral', 'implicit_dense'], f'Invalid method: {method}'
         self.in_channels = in_channels
         self.diffusion_time = nn.Parameter(torch.Tensor(in_channels))
@@ -88,7 +88,7 @@ class SpatialGradientFeatures(nn.Module):
             in_channels (int): number of input channels.
             with_gradient_rotations (bool, optional): whether with gradient rotations. Default True.
         """
-        super(SpatialGradientFeatures, self).__init__()
+        super().__init__()
 
         self.in_channels = in_channels
         self.with_gradient_rotations = with_gradient_rotations
@@ -132,7 +132,7 @@ class MiniMLP(nn.Sequential):
             activation (nn.Module, optional): activation function. Default ReLU.
             name (str, optional): module name. Default 'miniMLP'
         """
-        super(MiniMLP, self).__init__()
+        super().__init__()
 
         for i in range(len(layer_sizes) - 1):
             is_last = (i + 2 == len(layer_sizes))
@@ -177,7 +177,7 @@ class DiffusionNetBlock(nn.Module):
             with_gradient_features (bool, optional): whether use spatial gradient feature. Default True.
             with_gradient_rotations (bool, optional): whether use spatial gradient rotation. Default True.
         """
-        super(DiffusionNetBlock, self).__init__()
+        super().__init__()
 
         self.in_channels = in_channels
         self.mlp_hidden_channels = mlp_hidden_channels
@@ -288,7 +288,7 @@ class DiffusionNet(nn.Module):
             cache_dir (str, optional): cache dir contains all pre-computed spectral operators. Default None.
             input_type (str, optional): input type. One of ['xyz', 'shot', 'hks'] Default 'xyz'.
         """
-        super(DiffusionNet, self).__init__()
+        super().__init__()
         # sanity check
         assert diffusion_method in ['spectral', 'implicit_dense'], f'Invalid diffusion method: {diffusion_method}'
         assert output_at in ['vertices', 'edges', 'faces', 'global_mean'], f'Invalid output_at: {output_at}'

@@ -8,7 +8,7 @@ from src.infra.registry import NETWORK_REGISTRY, MODULE_REGISTRY
 @NETWORK_REGISTRY.register()
 class URSSM(nn.Module):
     def __init__(self, opt):
-        super(URSSM, self).__init__()
+        super().__init__()
         self.opt = opt
 
         self.feature_extractor = MODULE_REGISTRY[self.opt.network.feature_extractor.name](
@@ -97,7 +97,7 @@ class URSSM(nn.Module):
 @NETWORK_REGISTRY.register()
 class URSSM_vectorized(nn.Module):
     def __init__(self, opt):
-        super(URSSM_vectorized, self).__init__()
+        super().__init__()
         self.opt = opt
 
         self.point_descriptor = MODULE_REGISTRY[self.opt.network.point_descriptor.name](

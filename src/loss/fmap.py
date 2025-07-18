@@ -19,7 +19,7 @@ class SquaredFrobeniusLoss(BaseLoss):
 @LOSS_REGISTRY.register()
 class BijectivityLoss(BaseLoss):
     def __init__(self):
-        super(BijectivityLoss, self).__init__()
+        super().__init__()
         self.squared_frobenius = SquaredFrobeniusLoss()
 
     def forward(self, Cxy, Cyx):
@@ -44,7 +44,7 @@ class BijectivityLoss(BaseLoss):
 @LOSS_REGISTRY.register()
 class OrthogonalityLoss(BaseLoss):
     def __init__(self):
-        super(OrthogonalityLoss, self).__init__()
+        super().__init__()
         self.squared_frobenius = SquaredFrobeniusLoss()
 
     def forward(self, Cxy):
@@ -69,7 +69,7 @@ class OrthogonalityLoss(BaseLoss):
 @LOSS_REGISTRY.register()
 class LaplacianCommutativityLoss(BaseLoss):
     def __init__(self):
-        super(LaplacianCommutativityLoss, self).__init__()
+        super().__init__()
         self.squared_frobenius = SquaredFrobeniusLoss()
 
     def forward(self, Cxy, Cyx, evals_x, evals_y):
@@ -99,7 +99,7 @@ class LaplacianCommutativityLoss(BaseLoss):
 @LOSS_REGISTRY.register()
 class SpatialSpectralAlignmentLoss(BaseLoss):
     def __init__(self):
-        super(SpatialSpectralAlignmentLoss, self).__init__()
+        super().__init__()
         self.squared_frobenius = SquaredFrobeniusLoss()
 
     def forward(self, Cxy, Cyx, Pxy, Pyx, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y):
@@ -143,7 +143,7 @@ class PartialFmapsLoss(BaseLoss):
             w_bij (float, optional): Bijectivity penalty weight. Default 1.0.
             w_orth (float, optional): Orthogonality penalty weight. Default 1.0.
         """
-        super(PartialFmapsLoss, self).__init__()
+        super().__init__()
         assert w_bij >= 0 and w_orth >= 0, 'Loss weight should be non-negative.'
         self.w_bij = w_bij
         self.w_orth = w_orth
