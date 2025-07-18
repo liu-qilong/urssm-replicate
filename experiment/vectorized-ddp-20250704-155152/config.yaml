@@ -121,7 +121,11 @@ benchmark:
             name: SpatialSpectralAlignmentLoss
             weight: 1.0
             args: {}
+        # {}
     metric:
         geodist:
             name: GeodesicDist_vectorized
             args: {}
+        # throughput:
+        #     name: Throughput
+        #     args: {}

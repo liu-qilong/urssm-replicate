@@ -527,3 +527,5 @@ class BenchScript:
 
         for name, metric in self.metric_dict.items():
             metric.end_feed()
+
+        self.writer.flush()

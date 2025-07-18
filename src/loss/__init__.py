@@ -4,7 +4,7 @@ import torch.distributed as dist
 
 # customized base class
 class BaseLoss(nn.Module):
-    def forward(self):
+    def forward(self, infer, data):
         """Default method to invoke a forward pass"""
         pass
 

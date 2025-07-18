@@ -4,7 +4,7 @@ import torch.distributed as dist
 
 # customized base class
 class BaseMetric(nn.Module):
-    def forward(self):
+    def forward(self, infer, data):
         """Default method to invoke a forward pass"""
         pass
 
@@ -47,14 +47,12 @@ class BaseMetric(nn.Module):
         if not self.training:
             if self.rank is None:
                 # if not using distributed training, simply log the average loss
-                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_total / self.sample_total, self.script.global_step)
+                self.metric_avg = self.metric_total / self.sample_total
+                self.script.writer.add_scalar(f'metric/test/{self.name}', self.metric_avg, self.script.global_step)
 
             else:
                 # if using distributed training, gather the total loss and sample count across all ranks
-                self.sample_total = torch.tensor(
-                    self.sample_total,
-                    device=self.device,
-                )
+                self.sample_total = torch.tensor(self.sample_total).to(device=self.rank)
                 dist.all_reduce(self.metric_total, op=dist.ReduceOp.SUM)
                 dist.all_reduce(self.sample_total, op=dist.ReduceOp.SUM)
 
