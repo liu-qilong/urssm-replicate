@@ -5,7 +5,7 @@ import torch
 
 from src.metric import BaseMetric
 from src.infra.registry import METRIC_REGISTRY
-from src.utils.fmap import fmap2pointmap_vectorized, pointmap2Pyx_vectorized, corr2pointmap_vectorized
+from src.utils.fmap import fmap2pointmap_vectorized, pointmap2Pyx_vectorized, pointmap2Pyx_smooth_vectorized, corr2pointmap_vectorized
 from src.utils.tensor import to_numpy
 from src.utils.texture import write_obj_pair
 
@@ -57,7 +57,7 @@ class TextureTransferSample(BaseMetric):
                 data['first']['verts_mask'], data['second']['verts_mask']
             )
 
-            Pyx = pointmap2Pyx_vectorized(
+            Pyx = pointmap2Pyx_smooth_vectorized(
                 p2p=p2p,
                 evecs_x = data['first']['evecs'],
                 evecs_y = data['second']['evecs'],
@@ -138,7 +138,7 @@ class GTTextureTransferSample(TextureTransferSample):
                 num_verts_y=max(data['second']['num_verts']),
             )
 
-            Pyx = pointmap2Pyx_vectorized(
+            Pyx = pointmap2Pyx_smooth_vectorized(
                 p2p=p2p,
                 evecs_x=data['first']['evecs'],
                 evecs_y=data['second']['evecs'],

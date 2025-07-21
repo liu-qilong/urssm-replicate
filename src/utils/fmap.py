@@ -134,9 +134,9 @@ def pointmap2Cxy_vectorized(p2p, evecs_x, evecs_trans_y, verts_mask_y):
     return evecs_trans_y @ permuted_evecs_x
 
 
-def pointmap2Pyx_vectorized(p2p, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y, verts_mask_y):
+def pointmap2Pyx_smooth_vectorized(p2p, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y, verts_mask_y):
     """
-    Convert point-to-point mapping to the permutation matrix.
+    Convert point-to-point mapping to the permutation matrix, with spectral smoothing applied.
 
     Args:
         p2p (torch.Tensor): Point-to-point mapping of shape y -> x. Shape [B, V_y].
@@ -151,5 +151,31 @@ def pointmap2Pyx_vectorized(p2p, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y,
     """
     Cxy = pointmap2Cxy_vectorized(p2p, evecs_x, evecs_trans_y, verts_mask_y)  
     Pyx = evecs_y @ Cxy @ evecs_trans_x
+
+    return Pyx
+
+
+def pointmap2Pyx_vectorized(p2p, num_verts_y, num_verts_x):
+    """
+    Convert point-to-point mapping to the permutation matrix in a vectorized manner.
+
+    Args:
+        p2p (torch.Tensor): Point-to-point mapping of shape y -> x. Shape [B, V_y].
+        num_verts_y (int): Number of vertices in shape y.
+        num_verts_x (int): Number of vertices in shape x.
+    Returns:
+        torch.Tensor: Permutation matrix of shape [B, V_y, V_x].
+    """
+    B, V_y, V_x = len(p2p), max(num_verts_y), max(num_verts_x)
+
+    # batch indices (broadcasting)
+    batch_idx = torch.arange(B).unsqueeze(1).expand(-1, V_y).to(p2p.device)  # [B, V_y]
+    v_y_idx = torch.arange(V_y).unsqueeze(0).expand(B, -1).to(p2p.device)  # [B, V_y]
+    v_x_idx = torch.clamp(p2p, min=0).to(p2p.device)  # [B, V_y] P.S. clamp -1 as 0 for valid indices
+
+    # set ones where valid
+    mask = (p2p != -1)
+    Pyx = torch.zeros((B, V_y, V_x), dtype=torch.float32, device=p2p.device)
+    Pyx[batch_idx[mask], v_y_idx[mask], v_x_idx[mask]] = 1.0
 
     return Pyx
