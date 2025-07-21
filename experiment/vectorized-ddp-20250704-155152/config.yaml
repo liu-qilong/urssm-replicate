@@ -109,25 +109,22 @@ benchmark:
                 num_workers: 4
                 shuffle: True
     loss:
-        bij_loss:
-            name: BijectivityLoss
-            weight: 1.0
-            args: {}
-        orth_loss:
-            name: OrthogonalityLoss
-            weight: 1.0
-            args: {}
-        align_loss:
-            name: SpatialSpectralAlignmentLoss
-            weight: 1.0
-            args: {}
+        # bij_loss:
+        #     name: BijectivityLoss
+        #     weight: 1.0
+        #     args: {}
+        # orth_loss:
+        #     name: OrthogonalityLoss
+        #     weight: 1.0
+        #     args: {}
+        # align_loss:
+        #     name: SpatialSpectralAlignmentLoss
+        #     weight: 1.0
+        #     args: {}
         {}
     metric:
-        geodist:
-            name: GeodesicDist_vectorized
-            args: {}
-        # throughput:
-        #     name: Throughput
+        # geodist:
+        #     name: GeodesicDist_vectorized
         #     args: {}
         texture_transfer:
             name: TextureTransferSample
@@ -138,4 +135,14 @@ benchmark:
                 cammera_position: 'xy'
                 window_size: [1024, 1024]
                 output_folder: 'bench/texture-transfer-samples'
+                keep_mesh: False
+        gt-texture-transfer:
+            name: GTTextureTransferSample
+            args:
+                batch_interval: 25
+                texture_file: 'gallery/texture-symbol-grid.png'
+                shape_disp: [1, 0, 0]
+                cammera_position: 'xy'
+                window_size: [1024, 1024]
+                output_folder: 'bench/gt-texture-transfer-samples'
                 keep_mesh: False

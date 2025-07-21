@@ -48,6 +48,36 @@ def pointmap2fmap(p2p, evecs_x, evecs_y):
     return C21
 
 
+def corr2pointmap_vectorized(corr_x, corr_y, num_verts_y):
+    """
+    Convert a pair of correspondences to point-to-point map in a vectorized manner.
+    Args:
+        corr_x (torch.Tensor): Correspondences from template to target. Shape [B, V_t] _P.S. V_t is the number of vertices in the template shape._
+        corr_y (torch.Tensor): Correspondences from target to template. Shape [B, V_t]
+        num_verts_y (int): Number of vertices in the target shape.
+    Returns:
+        p2p (torch.Tensor): Point-to-point map (shape y -> shape x). Shape [B, V_y] _P.S. Padded points will have value -1.
+    """
+    # template -(corr_x)-> shape x <--> shape y <-(corr_y)- target
+    # i.e. the i-th row of corr_y is correspongding with the i-th row of corr_x
+    B, V_t = corr_x.shape
+    batch_idx = torch.arange(B, device=corr_y.device).unsqueeze(1).expand(B, V_t)  # [B, V_t]
+    p2p_t = torch.full((B, V_t), -1, dtype=torch.long).to(device=corr_y.device)
+    p2p_t[batch_idx, corr_y] = corr_x
+
+    # get p2p in shape [B, V_y]
+    V_y = num_verts_y
+
+    if V_t > V_y:
+        p2p = p2p_t[:, :V_y]
+
+    else:
+        p2p = torch.full((B, V_y), -1, dtype=torch.long).to(device=corr_y.device)
+        p2p[:, :V_t] = p2p_t
+    
+    return p2p
+
+
 def fmap2pointmap_vectorized(Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y):
     """
     Convert functional map to point-to-point map for a  (padded) batch of data in a vectorized manner
@@ -60,7 +90,7 @@ def fmap2pointmap_vectorized(Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y):
         verts_mask_y (torch.Tensor): mask for vertices in shape y. Shape [B, V_y] with valid points as 1 and padded points as 0.
 
     Returns:
-        p2p (torch.Tensor): point-to-point map (shape y -> shape x). Shape [B, V_y]. _P.S. This function works for padded batched data, and the padded points will also have value in the returned `p2p` map. You should carefully masked them out, otherwise undefined behavior may be introduced._
+        p2p (torch.Tensor): point-to-point map (shape y -> shape x). Shape [B, V_y]. _P.S. Padded points will have value -1._
     """
     # compute point-to-point map from y to x using the fmap Cxy
     dist = torch.cdist(
@@ -75,10 +105,13 @@ def fmap2pointmap_vectorized(Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y):
 
     # compute point-to-point map from y to x
     p2p = torch.argmin(dist, dim=-1) # [B, V_y]
-    
+
+    # set indices for masked y to -1
+    p2p = torch.where(verts_mask_y.bool(), p2p, -1)
+
     return p2p.long()
 
-def pointmap2Cxy_vectorized(p2p, evecs_x, evecs_trans_y):
+def pointmap2Cxy_vectorized(p2p, evecs_x, evecs_trans_y, verts_mask_y):
     """
     Convert point-to-point mapping to functional map for a  (padded) batch of data in a vectorized manner.
 
@@ -86,21 +119,22 @@ def pointmap2Cxy_vectorized(p2p, evecs_x, evecs_trans_y):
         p2p (torch.Tensor): Point-to-point mapping of shape y -> x. Shape [B, V_y].
         evecs_x (torch.Tensor): Eigenvectors of shape x. Shape [B, V_x, K].
         evecs_trans_y (torch.Tensor): Transposed eigenvectors of shape y. Shape [B, K, V_y].
+        verts_mask_y (torch.Tensor): mask for vertices in shape y. Shape [B, V_y] with valid points as 1 and padded points as 0.
 
     Returns:
         torch.Tensor: Functional map (shape x -> shape y). Shape [B, K, K].
     """
-    # expand p2p to (B, V, K) & gather along dim=1 (the V dimension)
+    # expand p2p to [B, V, K] & gather along dim=1 (the V dimension)
     # this will get Pyx @ Phi_x in effect
     K = evecs_x.shape[-1]
-    index = p2p.unsqueeze(-1).expand(-1, -1, K)
-    permuted_evecs_x = torch.gather(evecs_x, dim=1, index=index)
+    index = torch.clamp(p2p, min=0).unsqueeze(-1).expand(-1, -1, K) # [B, V, K]
+    permuted_evecs_x = torch.gather(evecs_x, dim=1, index=index) * verts_mask_y.unsqueeze(-1) # permute & mask out invalid rows
 
     # Cxy = Phi_y^T @ Pyx @ Phi_x
     return evecs_trans_y @ permuted_evecs_x
 
 
-def pointmap2Pyx_vectorized(p2p, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y):
+def pointmap2Pyx_vectorized(p2p, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y, verts_mask_y):
     """
     Convert point-to-point mapping to the permutation matrix.
 
@@ -110,11 +144,12 @@ def pointmap2Pyx_vectorized(p2p, evecs_x, evecs_y, evecs_trans_x, evecs_trans_y)
         evecs_y (torch.Tensor): Eigenvectors of shape y. Shape [B, V_y, K].
         evecs_trans_x (torch.Tensor): Transposed eigenvectors of shape x. Shape [B, K, V_x].
         evecs_trans_y (torch.Tensor): Transposed eigenvectors of shape y. Shape [B, K, V_y].
+        verts_mask_y (torch.Tensor): mask for vertices in shape y. Shape [B, V_y] with valid points as 1 and padded points as 0.
 
     Returns:
         torch.tensor: permutation matrix of shape [B, V_y, V_x].
     """
-    Cxy = pointmap2Cxy_vectorized(p2p, evecs_x, evecs_trans_y)
+    Cxy = pointmap2Cxy_vectorized(p2p, evecs_x, evecs_trans_y, verts_mask_y)  
     Pyx = evecs_y @ Cxy @ evecs_trans_x
 
     return Pyx
