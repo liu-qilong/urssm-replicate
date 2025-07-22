@@ -145,6 +145,176 @@ class FaustDatasetFast(ShapeDatasetFast):
             self.mesh_files = self.mesh_files[80:]
 
 
+@DATASET_REGISTRY.register()
+class ScapeDatasetFast(ShapeDatasetFast):
+    def __init__(
+            self,
+            data_root,
+            phase,
+            mesh_type='off',
+            return_faces=True,
+            return_L=False,
+            return_mass=True,
+            num_evecs=200,
+            return_evecs=True,
+            return_grad=True,
+            return_corr=False,
+            return_dist=False,
+        ):
+        super().__init__(
+            data_root,
+            mesh_type,
+            return_faces,
+            return_L,
+            return_mass,
+            num_evecs,
+            return_evecs,
+            return_grad,
+            return_corr,
+            return_dist,
+        )
+
+        assert phase in ['train', 'test', 'full'], f'Invalid phase {phase}, only "train" or "test" or "full"'
+        assert len(self) == 100, f'FAUST dataset should contain 100 human body shapes, but get {len(self)}.'
+
+        if phase == 'train':
+            self.mesh_files = self.mesh_files[:51]
+
+        elif phase == 'test':
+            self.mesh_files = self.mesh_files[51:]
+
+
+@DATASET_REGISTRY.register()
+class Shrec16DatasetFast(ShapeDatasetFast):
+    def __init__(
+            self,
+            data_root,
+            phase,
+            mesh_type='off',
+            return_faces=True,
+            return_L=False,
+            return_mass=True,
+            num_evecs=200,
+            return_evecs=True,
+            return_grad=True,
+            return_corr=False,
+            return_dist=False,
+        ):
+        super().__init__(
+            data_root,
+            mesh_type,
+            return_faces,
+            return_L,
+            return_mass,
+            num_evecs,
+            return_evecs,
+            return_grad,
+            return_corr,
+            return_dist,
+        )
+        if phase == 'train':
+            assert '_test' not in str(self.data_root), f'Invalid data root {self.data_root}, should be SHREC16/<cls>'
+
+        elif phase == '_test':
+            assert 'test' in str(self.data_root), f'Invalid data root {self.data_root}, should be SHREC16_test/<cls>'
+
+        else:
+            raise ValueError(f'Invalid phase {phase}, only "train" or "test"')
+
+
+@DATASET_REGISTRY.register()
+class Shrec19DatasetFast(ShapeDatasetFast):
+    def __init__(
+            self,
+            data_root,
+            phase,
+            mesh_type='off',
+            return_faces=True,
+            return_L=False,
+            return_mass=True,
+            num_evecs=200,
+            return_evecs=True,
+            return_grad=True,
+            return_corr=False,
+            return_dist=False,
+        ):
+        super().__init__(
+            data_root,
+            mesh_type,
+            return_faces,
+            return_L,
+            return_mass,
+            num_evecs,
+            return_evecs,
+            return_grad,
+            return_corr,
+            return_dist,
+        )
+        assert phase == 'test', f'Shrec19 dataset is only used as test set'
+       
+
+@DATASET_REGISTRY.register()
+class Shrec20DatasetFast(ShapeDatasetFast):
+    def __init__(
+            self,
+            data_root,
+            mesh_type='off',
+            return_faces=True,
+            return_L=False,
+            return_mass=True,
+            num_evecs=200,
+            return_evecs=True,
+            return_grad=True,
+            return_corr=False,
+            return_dist=False,
+        ):
+        assert not return_corr, 'Shrec20 dataset does not contain ground-truth correspondence.'
+        assert not return_dist, 'Shrec20 dataset does not contain ground-truth correspondence. Do not set return_dist to True.'
+        super().__init__(
+            data_root,
+            mesh_type,
+            return_faces,
+            return_L,
+            return_mass,
+            num_evecs,
+            return_evecs,
+            return_grad,
+            return_corr,
+            return_dist,
+        )
+
+
+@DATASET_REGISTRY.register()
+class TopKidsDatasetFast(ShapeDatasetFast):
+    def __init__(
+            self,
+            data_root,
+            mesh_type='off',
+            return_faces=True,
+            return_L=False,
+            return_mass=True,
+            num_evecs=200,
+            return_evecs=True,
+            return_grad=True,
+            return_corr=False,
+            return_dist=False,
+        ):
+        assert not return_corr, 'TopKids dataset does not contain ground-truth correspondence.'
+        assert not return_dist, 'TopKids dataset does not contain ground-truth correspondence. Do not set return_dist to True.'
+        super().__init__(
+            data_root,
+            mesh_type,
+            return_faces,
+            return_L,
+            return_mass,
+            num_evecs,
+            return_evecs,
+            return_grad,
+            return_corr,
+            return_dist,
+        )
+
+
 class PairShapeDataset(Dataset):
     def __init__(self, dataset):
         """
