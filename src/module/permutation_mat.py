@@ -16,6 +16,10 @@ class SoftmaxPermutationMatrix(nn.Module):
         self.hard = hard
 
     def forward(self, feat_x, feat_y, verts_mask_x, verts_mask_y):
+        """
+        Return:
+            Pxy: softmax permutation matrix (shape x->shape y). [B, V_x, V_y]
+        """
         log_alpha = torch.bmm(
             F.normalize(feat_x, dim=-1, p=2),
             F.normalize(feat_y, dim=-1, p=2).transpose(1, 2),
