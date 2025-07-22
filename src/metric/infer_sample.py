@@ -21,6 +21,7 @@ class TextureTransferSample(BaseMetric):
             cammera_position (str): Position of the camera.
             batch_interval (int): Generate texture transfer samples per `batch_interval` batches.
             output_folder (str): Folder to save the generated samples (relative to the experiment folder)
+            keep_mesh (bool): Whether to keep the mesh files after rendering.
         """
         super().__init__()
         self.batch_interval = batch_interval
@@ -63,7 +64,6 @@ class TextureTransferSample(BaseMetric):
                 evecs_y = data['second']['evecs'],
                 evecs_trans_x = data['first']['evecs_trans'],
                 evecs_trans_y = data['second']['evecs_trans'],
-                verts_mask_y=data['second']['verts_mask'],
             )
 
             name_x, name_y = data['first']['name'], data['second']['name']
@@ -125,6 +125,7 @@ class GTTextureTransferSample(TextureTransferSample):
             cammera_position (str): Position of the camera.
             batch_interval (int): Generate texture transfer samples per `batch_interval` batches.
             output_folder (str): Folder to save the generated samples (relative to the experiment folder)
+            keep_mesh (bool): Whether to keep the mesh files after rendering.
         """
         super().__init__(batch_interval, texture_file, shape_disp, cammera_position, window_size, output_folder, keep_mesh)
 
@@ -144,7 +145,6 @@ class GTTextureTransferSample(TextureTransferSample):
                 evecs_y=data['second']['evecs'],
                 evecs_trans_x=data['first']['evecs_trans'],
                 evecs_trans_y=data['second']['evecs_trans'],
-                verts_mask_y=data['second']['verts_mask'],
             )
 
             name_x, name_y = data['first']['name'], data['second']['name']
@@ -186,6 +186,59 @@ class GTTextureTransferSample(TextureTransferSample):
                     (self.output_path / f'{name_x[idx]}.mtl').unlink(missing_ok=True)
                     (self.output_path / f'{name_x[idx]}--{name_y[idx]}.obj').unlink(missing_ok=True)
                     (self.output_path / f'{name_x[idx]}--{name_y[idx]}.mtl').unlink(missing_ok=True)
+
+        # increment batch total
+        self.batch_total += 1
+        
+        # return zero
+        return torch.tensor(0.0).to(device=self.script.device)
+
+
+@METRIC_REGISTRY.register()
+class LBOSample(BaseMetric):
+    """Generate texture transfer samples.
+    """
+    def __init__(self, batch_interval: int = 10, data_root: str = 'data/FAUST_r', k: int = 10, shape_disp: list = [1, 0, 0], pair_disp: list = [0, 2, 0], cammera_position: str = 'xy', window_size: list = [1024, 1024], output_folder: str = 'bench/lbo-samples'):
+        """
+        Args:
+            batch_interval (int): Generate texture transfer samples per `batch_interval` batches.
+            k (int): Number of eigenvectors to use.
+            shape_disp (list): Displacement of the second shape.
+            pair_disp (list): Displacement of the pair of shapes.
+            cammera_position (str): Position of the camera.
+            output_folder (str): Folder to save the generated samples (relative to the experiment folder)
+        """
+        super().__init__()
+        self.batch_interval = batch_interval
+        self.data_root = Path(data_root)
+        self.k = k
+        self.shape_disp = shape_disp
+        self.pair_disp = pair_disp
+        self.cammera_position = cammera_position
+        self.window_size = window_size
+        self.output_folder = output_folder
+
+    def start_feed(self, script, name, rank=None):
+        """Log start time
+        
+        Args:
+            script: The traning/benchmark script object
+            name: The name of the metric method
+            rank: The rank of the process (if using distributed training)
+        """
+        super().start_feed(script, name, rank)
+        self.batch_total = 0
+
+        # create output folder
+        self.output_path = Path(script.opt.path) / self.output_folder
+        self.output_path.mkdir(parents=True, exist_ok=True)
+
+    def forward(self, infer, data):
+        """Generate texture transfer samples per `batch_interval` batches.
+        """
+        if self.batch_total % self.batch_interval == 0:
+            for idx in range(len(infer['Cxy'])):
+                pass
 
         # increment batch total
         self.batch_total += 1
