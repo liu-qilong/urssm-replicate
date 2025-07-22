@@ -146,3 +146,16 @@ benchmark:
                 window_size: [1024, 1024]
                 output_folder: 'bench/gt-texture-transfer-samples'
                 keep_mesh: False
+        lbo-sample:
+            name: LBOSample
+            args:
+                batch_interval: 25
+                data_root: 'data/FAUST_r'
+                k: 10
+                shape_disp: [1, 0, 0]
+                pair_disp: [0, 2, 0]
+                cmap: 'coolwarm'
+                cammera_position: 'xy'
+                camera_zoom: 2.0
+                window_size: [1024, 512]
+                output_folder: 'bench/lbo-samples'

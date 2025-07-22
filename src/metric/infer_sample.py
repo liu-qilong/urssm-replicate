@@ -1,11 +1,13 @@
 import shutil
 from pathlib import Path
-import pyvista as pv
+
 import torch
+import pyvista as pv
+import numpy as np
 
 from src.metric import BaseMetric
 from src.infra.registry import METRIC_REGISTRY
-from src.utils.fmap import fmap2pointmap_vectorized, pointmap2Pyx_vectorized, pointmap2Pyx_smooth_vectorized, corr2pointmap_vectorized
+from src.utils.fmap import fmap2pointmap_vectorized, pointmap2Pyx_smooth_vectorized, corr2pointmap_vectorized
 from src.utils.tensor import to_numpy
 from src.utils.texture import write_obj_pair
 
@@ -198,13 +200,15 @@ class GTTextureTransferSample(TextureTransferSample):
 class LBOSample(BaseMetric):
     """Generate texture transfer samples.
     """
-    def __init__(self, batch_interval: int = 10, data_root: str = 'data/FAUST_r', k: int = 10, shape_disp: list = [1, 0, 0], pair_disp: list = [0, 2, 0], cammera_position: str = 'xy', window_size: list = [1024, 1024], output_folder: str = 'bench/lbo-samples'):
+    def __init__(self, batch_interval: int = 10, data_root: str = 'data/FAUST_r', k: int = 10, shape_disp: list = [1, 0, 0], pair_disp: list = [0, 2, 0], cmap: str = 
+    'coolwarm', cammera_position: str = 'xy', camera_zoom: float = 2.0, window_size: list = [1024, 512], output_folder: str = 'bench/lbo-samples'):
         """
         Args:
             batch_interval (int): Generate texture transfer samples per `batch_interval` batches.
             k (int): Number of eigenvectors to use.
             shape_disp (list): Displacement of the second shape.
             pair_disp (list): Displacement of the pair of shapes.
+            cmap (str): Colormap to use for rendering.
             cammera_position (str): Position of the camera.
             output_folder (str): Folder to save the generated samples (relative to the experiment folder)
         """
@@ -212,9 +216,11 @@ class LBOSample(BaseMetric):
         self.batch_interval = batch_interval
         self.data_root = Path(data_root)
         self.k = k
-        self.shape_disp = shape_disp
-        self.pair_disp = pair_disp
+        self.shape_disp = np.array(shape_disp)
+        self.pair_disp = np.array(pair_disp)
+        self.cmap = cmap
         self.cammera_position = cammera_position
+        self.camera_zoom = camera_zoom
         self.window_size = window_size
         self.output_folder = output_folder
 
@@ -237,8 +243,45 @@ class LBOSample(BaseMetric):
         """Generate texture transfer samples per `batch_interval` batches.
         """
         if self.batch_total % self.batch_interval == 0:
+            # load vars
+            name_x, name_y = data['first']['name'], data['second']['name']
+            lbo_x, lbo_y = data['first']['evecs'], data['second']['evecs']
+            num_verts_x, num_verts_y = data['first']['num_verts'], data['second']['num_verts']
+
             for idx in range(len(infer['Cxy'])):
-                pass
+                pl = pv.Plotter(off_screen=True)
+                mesh_x = pv.read(self.data_root / 'off' / f"{name_x[idx]}.off")
+                mesh_y = pv.read(self.data_root / 'off' / f"{name_y[idx]}.off")
+
+                # value range
+                lbo_min = min(lbo_x[idx, :, :self.k].min(), lbo_y[idx, :, :self.k].min()).cpu().numpy()
+                lbo_max = max(lbo_x[idx, :, :self.k].max(), lbo_y[idx, :, :self.k].max()).cpu().numpy()
+
+                for dim in range(self.k):
+                    # render lbo dimensions
+                    mesh_x[f'lbo-{dim}'] = (lbo_x[idx, :num_verts_x[idx], dim]).cpu().numpy()
+                    mesh_y[f'lbo-{dim}'] = (lbo_y[idx, :num_verts_y[idx], dim]).cpu().numpy()
+
+                    pl.add_mesh(
+                        mesh=mesh_x.translate(dim * self.shape_disp),
+                        scalars=f'lbo-{dim}',
+                        cmap=self.cmap,
+                        clim=[lbo_min, lbo_max],
+                        show_scalar_bar=False,
+                    )
+                    pl.add_mesh(
+                        mesh=mesh_y.translate(dim * self.shape_disp).translate(self.pair_disp),
+                        scalars=f'lbo-{dim}',
+                        cmap=self.cmap,
+                        clim=[lbo_min, lbo_max],
+                        show_scalar_bar=False,
+                    )
+
+                # export lbo rendering
+                pl.camera_position = 'xy'
+                pl.zoom_camera(self.camera_zoom)
+                pl.screenshot(self.output_path / f'{name_x[idx]}--{name_y[idx]}.png', window_size=self.window_size, return_img=False)
+                pl.close()
 
         # increment batch total
         self.batch_total += 1
