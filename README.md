@@ -63,7 +63,7 @@ We thank the original dataset providers for their contributions to the shape ana
 For data preprocessing, we provide *[preprocess.py](preprocess.py)* to compute all things we need. Here is an example for FAUST_r:
 
 ```bash
-python preprocess.py --data_root ../data/FAUST_r/ --k_eig 200
+python preprocess.py --data_root data/FAUST_r/ --k_eig 200
 ```
 
 _P.S. To improve data loading efficiency, the caching mechanism in the original implementation is removed. Folder structure is changed accordingly. Therefore, if you're shifting from the original implementation, you will need to redo the preprocessing with the command above._

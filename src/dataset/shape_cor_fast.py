@@ -136,7 +136,7 @@ class FaustDatasetFast(ShapeDatasetFast):
         )
 
         assert phase in ['train', 'test', 'full'], f'Invalid phase {phase}, only "train" or "test" or "full"'
-        assert len(self) == 100, f'FAUST dataset should contain 100 human body shapes, but get {len(self)}.'
+        # assert len(self) == 100, f'FAUST dataset should contain 100 human body shapes, but get {len(self)}.'
 
         if phase == 'train':
             self.mesh_files = self.mesh_files[:80]

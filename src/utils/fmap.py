@@ -1,7 +1,7 @@
 # This implementation is adapted from Dongliang Cao, et al. (2024): https://github.com/dongliangcao/unsupervised-learning-of-robust-spectral-shape-matching. New modules & refinements are added
 
-import numpy as np
 import torch
+from src.module.fmap import RegularizedFMNet_vectorized
 
 
 def nn_query(feat_x, feat_y, dim=-2):
@@ -46,36 +46,6 @@ def pointmap2fmap(p2p, evecs_x, evecs_y):
     """
     C21 = torch.linalg.lstsq(evecs_x, evecs_y[p2p, :]).solution
     return C21
-
-
-def corr2pointmap_vectorized(corr_x, corr_y, num_verts_y):
-    """
-    Convert a pair of correspondences to point-to-point map in a vectorized manner.
-    Args:
-        corr_x (torch.Tensor): Correspondences from template to target. Shape [B, V_t] _P.S. V_t is the number of vertices in the template shape._
-        corr_y (torch.Tensor): Correspondences from target to template. Shape [B, V_t]
-        num_verts_y (int): Number of vertices in the target shape. _P.S. Shared among the whole batch._
-    Returns:
-        p2p (torch.Tensor): Point-to-point map (shape y -> shape x). Shape [B, V_y]  _P.S. Invalid points will have value -1._
-    """
-    # template -(corr_x)-> shape x <--> shape y <-(corr_y)- target
-    # i.e. the i-th row of corr_y is correspongding with the i-th row of corr_x
-    B, V_t = corr_x.shape
-    batch_idx = torch.arange(B, device=corr_y.device).unsqueeze(1).expand(B, V_t)  # [B, V_t]
-    p2p_t = torch.full((B, V_t), -1, dtype=torch.long).to(device=corr_y.device)
-    p2p_t[batch_idx, corr_y] = corr_x
-
-    # get p2p in shape [B, V_y]
-    V_y = num_verts_y
-
-    if V_t > V_y:
-        p2p = p2p_t[:, :V_y]
-
-    else:
-        p2p = torch.full((B, V_y), -1, dtype=torch.long).to(device=corr_y.device)
-        p2p[:, :V_t] = p2p_t
-    
-    return p2p
 
 
 def fmap2pointmap_vectorized(Cxy, evecs_x, evecs_y, verts_mask_x, verts_mask_y):
@@ -173,8 +143,84 @@ def pointmap2Pyx_vectorized(p2p, num_verts_y, num_verts_x):
     v_x_idx = torch.clamp(p2p, min=0).to(p2p.device)  # [B, V_y] P.S. clamp -1 as 0 for valid indices
 
     # set ones where valid
-    mask = (p2p != -1)
+    mask = (p2p != -1) # [B, V_y]
     Pyx = torch.zeros((B, V_y, V_x), dtype=torch.float32, device=p2p.device)
     Pyx[batch_idx[mask], v_y_idx[mask], v_x_idx[mask]] = 1.0
 
     return Pyx
+
+
+def corr2pointmap_vectorized(corr_x, corr_y, num_verts_y):
+    """
+    Convert a pair of ground-truth correspondences to point-to-point map in a vectorized manner.
+
+    **P.S. Every vertex from the template shape will have a corresponding vertex from shape x & y, but not vice versa. Therefore, the established pointmap from y to x is very possible to contain missing points, represented as -1.**
+
+    Args:
+        corr_x (torch.Tensor): Correspondences from template to target. Shape [B, V_t] _P.S. V_t is the number of vertices in the template shape._
+        corr_y (torch.Tensor): Correspondences from target to template. Shape [B, V_t]
+        num_verts_y (int): Number of vertices in the target shape. _P.S. Shared among the whole batch._
+    Returns:
+        p2p (torch.Tensor): Point-to-point map (shape y -> shape x). Shape [B, V_y]  _P.S. Invalid points will have value -1._
+    """
+    # template -(corr_x)-> shape x <--> shape y <-(corr_y)- target
+    # i.e. the i-th row of corr_y is correspongding with the i-th row of corr_x
+    B, V_t = corr_x.shape
+    batch_idx = torch.arange(B, device=corr_y.device).unsqueeze(1).expand(B, V_t)  # [B, V_t]
+    p2p_t = torch.full((B, V_t), -1, dtype=torch.long).to(device=corr_y.device)
+    p2p_t[batch_idx, corr_y] = corr_x
+
+    # get p2p in shape [B, V_y]
+    V_y = num_verts_y
+
+    if V_t > V_y:
+        p2p = p2p_t[:, :V_y]
+
+    else:
+        p2p = torch.full((B, V_y), -1, dtype=torch.long).to(device=corr_y.device)
+        p2p[:, :V_t] = p2p_t
+    
+    return p2p
+
+
+def corr2fmap_vectorized(corr_x, corr_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y):
+    """
+    Convert a pair of ground-truth correspondences to point-to-point map which is filled by solving the functional maps problem.
+
+    **P.S. Although the y to x correspondence may be incomplete, they can be converted to corresponding point indicator functions. Then a filled map is solve with functional maps.**
+
+    Args:
+        corr_x (torch.Tensor): Correspondences from template to target. Shape [B, V_t] _P.S. V_t is the number of vertices in the template shape._
+        corr_y (torch.Tensor): Correspondences from target to template. Shape [B, V_t]
+        num_verts_y (int): Number of vertices in the target shape. _P.S. Shared among the whole batch._
+        evals_x (torch.Tensor): Eigenvalues of shape x. Shape [B, K]
+        evals_y (torch.Tensor): Eigenvalues of shape y. Shape [B, K]
+        evecs_trans_x (torch.Tensor): Transposed eigenvectors of shape x. Shape [B, K, V_x]
+        evecs_trans_y (torch.Tensor): Transposed eigenvectors of shape y. Shape [B, K, V_y]
+    Returns:
+        Cxy (torch.Tensor): Functional maps from shape x -> shape y. Shape [B, K, K]
+    """
+    B, _, V_x = evecs_trans_x.shape
+    _, _, V_y = evecs_trans_y.shape
+    _, V_t = corr_x.shape
+
+    # point indicator functions
+    delta_x = torch.eye(V_x, V_x).repeat(B, 1, 1).to(device=corr_x.device) # [B, V_x, V_x]
+    delta_y = torch.eye(V_y, V_y).repeat(B, 1, 1).to(device=corr_y.device) # [B, V_y, V_y]
+
+    # get V_t corresponding point indicator functions as features
+    batch_idx = torch.arange(B, device=corr_y.device).unsqueeze(1).expand(B, V_t)  # [B, V_t]
+    feat_x = delta_x[batch_idx, corr_x].transpose(1, 2)  # [B, V_t, V_x] -> [B, V_x, V_t]
+    feat_y = delta_y[batch_idx, corr_y].transpose(1, 2)  # [B, V_t, V_y] -> [B, V_y, V_t]
+    
+    # solve the functional map
+    fmap_solver = RegularizedFMNet_vectorized()
+    Cxy, _ = fmap_solver(
+        feat_x=feat_x,
+        feat_y=feat_y,
+        evals_x=evals_x,
+        evals_y=evals_y,
+        evecs_trans_x=evecs_trans_x,
+        evecs_trans_y=evecs_trans_y,
+    )
+    return Cxy
