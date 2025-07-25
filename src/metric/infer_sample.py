@@ -7,7 +7,7 @@ import numpy as np
 
 from src.metric import BaseMetric
 from src.infra.registry import METRIC_REGISTRY
-from src.utils.fmap import fmap2pointmap_vectorized, pointmap2Pyx_smooth_vectorized, corr2fmap_vectorized
+from src.utils.fmap import fmap2pointmap_vectorized, pointmap2Pyx_smooth_vectorized, corr2pointmap_vectorized
 from src.utils.tensor import to_numpy
 from src.utils.texture import write_obj_pair
 
@@ -135,21 +135,19 @@ class GTTextureTransferSample(TextureTransferSample):
         """Generate texture transfer samples per `batch_interval` batches.
         """
         if self.batch_total % self.batch_interval == 0:
-            Cxy = corr2fmap_vectorized(
+            p2p = corr2pointmap_vectorized(
                 corr_x=data['first']['corr'],
                 corr_y=data['second']['corr'],
-                evals_x=data['first']['evals'],
-                evals_y=data['second']['evals'],
-                evecs_trans_x=data['first']['evecs_trans'],
-                evecs_trans_y=data['second']['evecs_trans'],
-            )
-
-            p2p = fmap2pointmap_vectorized(
-                Cxy=Cxy,
-                evecs_x=data['first']['evecs'],
-                evecs_y=data['second']['evecs'],
-                verts_mask_x=data['first']['verts_mask'],
-                verts_mask_y=data['second']['verts_mask'],
+                num_verts_y=data['second']['num_verts'],
+                spectral_filling = True,
+                evals_x = data['first']['evals'],
+                evals_y = data['second']['evals'],
+                evecs_x = data['first']['evecs'],
+                evecs_y = data['second']['evecs'],
+                evecs_trans_x = data['first']['evecs_trans'],
+                evecs_trans_y = data['second']['evecs_trans'],
+                verts_mask_x = data['first']['verts_mask'],
+                verts_mask_y = data['second']['verts_mask'],
             )
 
             Pyx = pointmap2Pyx_smooth_vectorized(

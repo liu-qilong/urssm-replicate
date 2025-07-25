@@ -150,7 +150,7 @@ def pointmap2Pyx_vectorized(p2p, num_verts_y, num_verts_x):
     return Pyx
 
 
-def corr2pointmap_vectorized(corr_x, corr_y, num_verts_y):
+def corr2pointmap_vectorized(corr_x, corr_y, num_verts_y, spectral_filling: bool = False, evals_x = None, evals_y = None, evecs_x = None, evecs_y = None, evecs_trans_x = None, evecs_trans_y = None, verts_mask_x = None, verts_mask_y = None):
     """
     Convert a pair of ground-truth correspondences to point-to-point map in a vectorized manner.
 
@@ -159,7 +159,16 @@ def corr2pointmap_vectorized(corr_x, corr_y, num_verts_y):
     Args:
         corr_x (torch.Tensor): Correspondences from template to target. Shape [B, V_t] _P.S. V_t is the number of vertices in the template shape._
         corr_y (torch.Tensor): Correspondences from target to template. Shape [B, V_t]
-        num_verts_y (int): Number of vertices in the target shape. _P.S. Shared among the whole batch._
+        num_verts_y (torch.Tensor): Number of vertices in the target shape. Shape [B,].
+        spectral_filling (bool): Whether to apply spectral filling to the pointmap. If True, the pointmap will be filled with functional maps. If False, the pointmap will be directly constructed from correspondences.
+        evals_x (torch.Tensor): _When using spectral filling._ Eigenvalues of shape x. Shape [B, K].
+        evals_y (torch.Tensor): _When using spectral filling._ Eigenvalues of shape y. Shape [B, K].
+        evecs_x (torch.Tensor): _When using spectral filling._ Eigenvectors of shape x. Shape [B, V_x, K].
+        evecs_y (torch.Tensor): _When using spectral filling._ Eigenvectors of shape y. Shape [B, V_y, K].
+        evecs_trans_x (torch.Tensor): _When using spectral filling._ Transposed eigenvectors of shape x. Shape [B, K, V_x].
+        evecs_trans_y (torch.Tensor): _When using spectral filling._ Transposed eigenvectors of shape y. Shape [B, K, V_y].
+        verts_mask_x (torch.Tensor): _When using spectral filling._ Mask for vertices in shape x. Shape [B, V_x] with valid points as 1 and padded points as 0.
+        verts_mask_y (torch.Tensor): _When using spectral filling._ Mask for vertices in shape y. Shape [B, V_y] with valid points as 1 and padded points as 0
     Returns:
         p2p (torch.Tensor): Point-to-point map (shape y -> shape x). Shape [B, V_y]  _P.S. Invalid points will have value -1._
     """
@@ -171,7 +180,7 @@ def corr2pointmap_vectorized(corr_x, corr_y, num_verts_y):
     p2p_t[batch_idx, corr_y] = corr_x
 
     # get p2p in shape [B, V_y]
-    V_y = num_verts_y
+    V_y = max(num_verts_y)
 
     if V_t > V_y:
         p2p = p2p_t[:, :V_y]
@@ -180,6 +189,19 @@ def corr2pointmap_vectorized(corr_x, corr_y, num_verts_y):
         p2p = torch.full((B, V_y), -1, dtype=torch.long).to(device=corr_y.device)
         p2p[:, :V_t] = p2p_t
     
+    # spectral filling
+    if spectral_filling:
+        Cxy_fill = corr2fmap_vectorized(corr_x, corr_y, evals_x, evals_y, evecs_trans_x, evecs_trans_y)
+        p2p_fill = fmap2pointmap_vectorized(
+            Cxy=Cxy_fill,
+            evecs_x=evecs_x,
+            evecs_y=evecs_y,
+            verts_mask_x=verts_mask_x,
+            verts_mask_y=verts_mask_y,
+        )
+        batch_idx, y_no_corr = torch.where(p2p == -1)
+        p2p[batch_idx, y_no_corr] = p2p_fill[batch_idx, y_no_corr]
+
     return p2p
 
 
@@ -214,7 +236,7 @@ def corr2fmap_vectorized(corr_x, corr_y, evals_x, evals_y, evecs_trans_x, evecs_
     feat_y = delta_y[batch_idx, corr_y].transpose(1, 2)  # [B, V_t, V_y] -> [B, V_y, V_t]
     
     # solve the functional map
-    fmap_solver = RegularizedFMNet_vectorized()
+    fmap_solver = RegularizedFMNet_vectorized(lmbda=0)
     Cxy, _ = fmap_solver(
         feat_x=feat_x,
         feat_y=feat_y,
